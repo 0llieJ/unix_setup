@@ -1,0 +1,79 @@
+# ==============================================================================
+# FLATPAK.TXT - Flatpak applications (from Flathub)
+# ==============================================================================
+# Flatpaks are sandboxed applications that work across all Linux distributions.
+# They're great for desktop apps because:
+# - Same version on all distros
+# - Isolated from system (security)
+# - Auto-updates available
+#
+# Format: <reverse-domain-app-id>
+# Find apps at: https://flathub.org
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# CODE EDITORS
+# ------------------------------------------------------------------------------
+dev.zed.Zed                         # Zed - fast collaborative code editor
+
+# ------------------------------------------------------------------------------
+# WEB BROWSERS
+# ------------------------------------------------------------------------------
+app.zen_browser.zen                 # Zen Browser - privacy-focused Firefox fork
+
+# ------------------------------------------------------------------------------
+# PASSWORD MANAGERS
+# ------------------------------------------------------------------------------
+com.bitwarden.desktop               # Bitwarden - open source password manager
+org.keepassxc.KeePassXC             # KeePassXC - offline password manager
+
+# ------------------------------------------------------------------------------
+# DEVELOPMENT TOOLS
+# ------------------------------------------------------------------------------
+# DevPod - installed as CLI binary in bootstrap Phase 5 (not on Flathub)
+
+# ------------------------------------------------------------------------------
+# NOTES & PRODUCTIVITY
+# ------------------------------------------------------------------------------
+md.obsidian.Obsidian               # Obsidian - knowledge base / note-taking
+
+# ------------------------------------------------------------------------------
+# COMMUNICATION
+# ------------------------------------------------------------------------------
+org.signal.Signal                   # Signal - encrypted messaging
+
+# ------------------------------------------------------------------------------
+# FILE SHARING
+# ------------------------------------------------------------------------------
+org.localsend.localsend_app         # LocalSend - local network file sharing
+
+# ------------------------------------------------------------------------------
+# SECURITY & ENCRYPTION
+# ------------------------------------------------------------------------------
+org.cryptomator.Cryptomator         # Cryptomator - cloud storage encryption
+ch.protonmail.protonmail-bridge     # Proton Mail Bridge - use ProtonMail with desktop clients
+
+# ------------------------------------------------------------------------------
+# HARDWARE
+# ------------------------------------------------------------------------------
+one.flipperzero.qFlipper            # qFlipper - Flipper Zero companion app
+
+# ------------------------------------------------------------------------------
+# MEDIA
+# ------------------------------------------------------------------------------
+com.spotify.Client                  # Spotify - music streaming
+org.videolan.VLC                    # VLC - universal media player
+com.calibre_ebook.calibre           # Calibre - e-book management
+# org.gimp.GIMP                     # GIMP - image editor (uncomment if needed)
+
+# ------------------------------------------------------------------------------
+# SYSTEM UTILITIES
+# ------------------------------------------------------------------------------
+io.github.flattool.Warehouse        # Warehouse - Flatpak management GUI
+com.github.tchx84.Flatseal          # Flatseal - Flatpak permissions manager
+
+# ------------------------------------------------------------------------------
+# AI TOOLS
+# ------------------------------------------------------------------------------
+# Note: Claude Desktop is not available on Flathub
+# Install via: https://claude.ai/download or AUR (Arch)

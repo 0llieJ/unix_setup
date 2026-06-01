@@ -1,0 +1,69 @@
+# ==============================================================================
+# FEDORA.TXT - Fedora-specific packages (dnf)
+# ==============================================================================
+# Packages here either have Fedora-specific names or require Fedora repos.
+# See common.txt for packages with identical names on all distros.
+#
+# Cross-distro comments show equivalent names on other distros.
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# SSH (ubuntu/debian=openssh-client)
+# ------------------------------------------------------------------------------
+openssh                 # SSH client and server
+
+# ------------------------------------------------------------------------------
+# CRYPTOGRAPHY (ubuntu/debian=gnupg2)
+# ------------------------------------------------------------------------------
+gnupg                   # GNU Privacy Guard - encryption and signing
+
+# ------------------------------------------------------------------------------
+# SECURITY (Fedora splits clamav-update out; other distros bundle it)
+# ------------------------------------------------------------------------------
+clamav-update           # Virus database updater (freshclam)
+
+# ------------------------------------------------------------------------------
+# SYSTEM TOOLS
+# ------------------------------------------------------------------------------
+polkit-gnome            # Authentication agent for privilege escalation
+
+# ------------------------------------------------------------------------------
+# COMPRESSION (arch=p7zip, ubuntu/debian=p7zip)
+# ------------------------------------------------------------------------------
+p7zip-plugins           # Additional 7-Zip format support
+
+# ------------------------------------------------------------------------------
+# FONTS (arch=ttf-*, ubuntu/debian=fonts-*)
+# ------------------------------------------------------------------------------
+fira-code-fonts         # Fira Code - programming font with ligatures
+jetbrains-mono-fonts    # JetBrains Mono - programming font
+fontawesome-fonts       # Font Awesome icons (for waybar)
+# nerd-fonts             # Installed via script (no reliable dnf package) - see bootstrap.sh
+
+# ------------------------------------------------------------------------------
+# VIRTUALIZATION (arch=qemu-full, ubuntu/debian=qemu-system-x86)
+# ------------------------------------------------------------------------------
+qemu-kvm                # QEMU with KVM acceleration
+libvirt                 # Virtualization API (ubuntu/debian=libvirt-daemon-system)
+virt-viewer             # VM console viewer
+bridge-utils            # Network bridging for VMs
+libguestfs-tools        # Tools for accessing VM disk images
+
+# ------------------------------------------------------------------------------
+# TERMINAL EMULATORS (require COPR repos - enabled in setup_repos)
+# ------------------------------------------------------------------------------
+ghostty                 # Modern terminal emulator (from COPR)
+wezterm                 # GPU-accelerated terminal with Lua config (from COPR)
+
+# ------------------------------------------------------------------------------
+# WEB BROWSER (requires vendor repo - enabled in setup_repos)
+# ------------------------------------------------------------------------------
+brave-browser           # Brave web browser (from repo)
+
+# ==============================================================================
+# TOOLS MANAGED ELSEWHERE (see install priority: mise -> Flatpak -> Homebrew)
+# ==============================================================================
+# mise: languages, CLI tools, btop, fastfetch, tldr, lazyssh, lima, opencode
+# Homebrew: nushell, sshs, goose, tree, p7zip, figlet, lolcat, asciiquarium,
+#           proxychains-ng, ykman
+# Flatpak: Zed, Zen Browser, Bitwarden, DevPod, Obsidian, Signal, etc.

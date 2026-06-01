@@ -1,0 +1,73 @@
+# ==============================================================================
+# ARCH.TXT - Arch Linux packages (pacman)
+# ==============================================================================
+# Packages here either have Arch-specific names or are Arch-only.
+# See common.txt for packages with identical names on all distros.
+#
+# Cross-distro comments show equivalent names on other distros.
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# BASE DEVELOPMENT TOOLS
+# ------------------------------------------------------------------------------
+base-devel              # Meta-package: gcc, make, binutils, pkg-config, fakeroot
+
+# ------------------------------------------------------------------------------
+# SSH (ubuntu/debian=openssh-client)
+# ------------------------------------------------------------------------------
+openssh                 # SSH client and server
+
+# ------------------------------------------------------------------------------
+# CRYPTOGRAPHY (ubuntu/debian=gnupg2)
+# ------------------------------------------------------------------------------
+gnupg                   # GNU Privacy Guard - encryption and signing
+
+# ------------------------------------------------------------------------------
+# SYSTEM TOOLS
+# ------------------------------------------------------------------------------
+polkit-gnome            # Authentication agent for privilege escalation
+
+# ------------------------------------------------------------------------------
+# COMPRESSION (fedora=p7zip-plugins)
+# ------------------------------------------------------------------------------
+p7zip                   # 7-Zip file archiver
+
+# ------------------------------------------------------------------------------
+# FONTS (fedora=*-fonts, ubuntu/debian=fonts-*)
+# ------------------------------------------------------------------------------
+ttf-fira-code           # Fira Code - programming font with ligatures
+ttf-jetbrains-mono      # JetBrains Mono - programming font
+ttf-font-awesome        # Font Awesome icons (for waybar)
+ttf-nerd-fonts-symbols  # Nerd Fonts icon glyphs for terminal
+
+# ------------------------------------------------------------------------------
+# CONTAINERS — Podman runtime dependencies (Arch-specific package names)
+# These are required for rootless Podman to work. Without them, podman run
+# will fail with network or runtime errors even though the binary is installed.
+# ------------------------------------------------------------------------------
+netavark                # Container network stack (replaces CNI plugins in modern Podman)
+crun                    # Lightweight OCI container runtime (faster than runc)
+slirp4netns             # Rootless networking — lets containers reach the internet without root
+libscfg                 # Config file parser required by netavark
+
+# ------------------------------------------------------------------------------
+# VIRTUALIZATION (fedora=qemu-kvm, ubuntu/debian=qemu-system-x86)
+# ------------------------------------------------------------------------------
+qemu-full               # QEMU full system emulation
+libvirt                 # Virtualization API (ubuntu/debian=libvirt-daemon-system)
+bridge-utils            # Network bridging for VMs
+
+# ------------------------------------------------------------------------------
+# TERMINAL EMULATORS (ghostty is AUR - see arch-aur.txt)
+# ------------------------------------------------------------------------------
+wezterm                 # GPU-accelerated terminal with Lua config
+
+# ==============================================================================
+# MANAGED ELSEWHERE (see install priority: mise -> Flatpak -> Homebrew -> AUR)
+# ==============================================================================
+# mise: languages, CLI tools, btop, fastfetch, tldr, lazyssh, lima, opencode,
+#       cowsay, neovim, chezmoi, delta, uv
+# Homebrew: nushell, sshs, goose, tree, p7zip, figlet, lolcat, asciiquarium,
+#           proxychains-ng, ykman (yubikey-manager)
+# Flatpak: Zed, Zen Browser, Bitwarden, DevPod, qFlipper, Cryptomator,
+#          LocalSend, Signal, Obsidian, Spotify, VLC

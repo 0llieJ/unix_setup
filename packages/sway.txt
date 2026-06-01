@@ -1,0 +1,36 @@
+# ==============================================================================
+# SWAY.TXT - Sway ecosystem packages
+# ==============================================================================
+# Skipped automatically if Sway is already installed (e.g. Fedora Sway Spin).
+# Package names are identical across Fedora, Arch, Ubuntu, and Debian.
+#
+# NOTE: On Arch, sway is replaced by swayfx (AUR) — a drop-in fork that adds
+# rounded corners, blur, and shadows. The swayfx entry in arch-aur.txt takes
+# precedence; this sway entry only installs on non-Arch distros.
+# ==============================================================================
+
+sway                    # Tiling Wayland compositor — replaced by swayfx on Arch (see arch-aur.txt)
+waybar                  # Highly customizable Wayland bar
+swaylock                # Screen locker for Sway
+swayidle                # Idle management daemon
+swaybg                  # Wallpaper tool for Sway
+mako                    # Lightweight notification daemon
+rofi-wayland            # Wayland-native application launcher
+grim                    # Screenshot utility
+slurp                   # Region selector for screenshots
+brightnessctl           # Backlight control
+playerctl               # Media player control
+pamixer                 # PulseAudio command line mixer
+thunar                  # File manager
+kanshi                  # Dynamic display configuration
+flameshot               # Screenshot tool — requires a window rule in Sway config to work on Wayland:
+                        # for_window [app_id="flameshot"] border pixel 0, floating enable, fullscreen disable, move absolute position 0 0
+
+# ------------------------------------------------------------------------------
+# Login manager (greeter) — pick one, uncomment it, comment the rest out
+# Module 09 configures whichever is installed
+# ------------------------------------------------------------------------------
+sddm                    # Qt-based greeter, most popular for tiling WMs, good Wayland support (recommended)
+# gdm                   # GNOME's greeter — polished but pulls in ~300MB of GNOME dependencies
+# lightdm               # Lightweight and modular — pair with a greeter: lightdm-slick-greeter (GTK, clean)
+                        #   or lightdm-webkit2-greeter (fully themeable via HTML/CSS)

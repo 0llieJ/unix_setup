@@ -1,0 +1,44 @@
+# ==============================================================================
+# ARCH-AUR.TXT - AUR packages (installed via paru)
+# ==============================================================================
+# Packages ending in -bin are pre-compiled binaries (faster install).
+# Packages without -bin are built from source (takes longer).
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# SWAY (Arch only — replaces plain sway in sway.txt)
+# ------------------------------------------------------------------------------
+# greetd-tuigreet       # Minimal TUI greeter for greetd — clock + remember last user, no GUI
+# greetd-regreet        # GTK4 GUI greeter for greetd — clean, built for wlroots compositors
+# nwg-hello             # GTK3 GUI greeter for greetd — designed specifically for Sway/Hyprland
+swayfx                  # SwayFX — Sway fork with rounded corners, blur, shadows, and dim inactive.
+                        # Drop-in replacement: same config, same keybindings, just visual extras.
+                        # Actively maintained: https://github.com/WillPower3309/swayfx
+
+# ------------------------------------------------------------------------------
+# TERMINAL EMULATORS (fedora/ubuntu/debian=ghostty via COPR/repo)
+# ------------------------------------------------------------------------------
+ghostty                 # Modern GPU-accelerated terminal emulator
+
+# ------------------------------------------------------------------------------
+# WEB BROWSERS (fedora/ubuntu/debian=brave-browser via vendor repo)
+# ------------------------------------------------------------------------------
+brave-bin               # Brave - privacy-focused Chromium browser
+
+# ------------------------------------------------------------------------------
+# TERMINAL ENTERTAINMENT
+# ------------------------------------------------------------------------------
+cbonsai                 # Grow ASCII bonsai trees in terminal
+pipes.sh                # Animated pipes terminal screensaver
+
+# ------------------------------------------------------------------------------
+# VPN AND NETWORKING
+# ------------------------------------------------------------------------------
+protonvpn               # ProtonVPN GUI client
+protonvpn-cli           # ProtonVPN command-line interface
+netbird                 # WireGuard-based mesh VPN
+
+# ------------------------------------------------------------------------------
+# AI DESKTOP APPLICATIONS
+# ------------------------------------------------------------------------------
+claude-desktop-bin      # Claude Desktop - Anthropic AI assistant

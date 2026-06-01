@@ -1,0 +1,101 @@
+# ==============================================================================
+# COMMON.TXT - Packages with IDENTICAL names on ALL distros
+# ==============================================================================
+# Rule: A package may ONLY be here if its name is the same on Fedora, Arch,
+# Ubuntu, and Debian, AND it requires no special repo setup.
+# If any distro uses a different name, put it in each distro's file instead.
+#
+# NOTE: Many CLI tools are managed by mise. See ~/.config/mise/config.toml
+# This list only contains packages that MUST be installed via system package manager.
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# VERSION CONTROL
+# ------------------------------------------------------------------------------
+git                     # Distributed version control system
+
+# ------------------------------------------------------------------------------
+# TEXT EDITORS
+# ------------------------------------------------------------------------------
+vim                     # Classic text editor (fallback - neovim is in mise)
+
+# ------------------------------------------------------------------------------
+# SHELLS
+# ------------------------------------------------------------------------------
+zsh                     # Z shell - powerful shell with great plugins
+bash-completion         # Tab completion for bash commands
+
+# ------------------------------------------------------------------------------
+# NETWORK UTILITIES
+# ------------------------------------------------------------------------------
+curl                    # Transfer data with URLs (HTTP, FTP, etc.)
+wget                    # Download files from the web
+rsync                   # Fast, versatile file copying/syncing
+wireguard-tools         # WireGuard VPN utilities
+
+# ------------------------------------------------------------------------------
+# FILE UTILITIES
+# ------------------------------------------------------------------------------
+unzip                   # Extract ZIP archives
+zip                     # Create ZIP archives
+tar                     # Archive utility (tar.gz, tar.xz, etc.)
+
+# ------------------------------------------------------------------------------
+# CLIPBOARD (WAYLAND)
+# ------------------------------------------------------------------------------
+wl-clipboard            # Wayland clipboard utilities (wl-copy, wl-paste)
+
+# ------------------------------------------------------------------------------
+# SECURITY & CRYPTOGRAPHY
+# ------------------------------------------------------------------------------
+openssl                 # TLS/SSL toolkit and cryptography library
+
+# ------------------------------------------------------------------------------
+# BACKUP & RECOVERY
+# ------------------------------------------------------------------------------
+timeshift               # System restore/snapshot tool (rsync or btrfs)
+
+# ------------------------------------------------------------------------------
+# SECURITY
+# ------------------------------------------------------------------------------
+clamav                  # Antivirus engine
+
+# ------------------------------------------------------------------------------
+# CONTAINERS
+# ------------------------------------------------------------------------------
+podman                  # Docker-compatible container runtime (rootless)
+podman-compose          # Run docker-compose files with Podman
+# distrobox             # Run other Linux distros as containers sharing your home directory —
+                        # useful for running apt packages on Arch, or isolating per-project
+                        # environments without the overhead of a full VM.
+# toolbox               # Red Hat's container tool (similar to distrobox but simpler, Fedora-first).
+                        # Uses Podman under the hood. Runs Fedora/RHEL container images out of the box.
+                        # Available on Fedora (dnf), Arch (AUR: toolbox), and Ubuntu (apt: podman-toolbox).
+
+# ------------------------------------------------------------------------------
+# FLATPAK
+# ------------------------------------------------------------------------------
+flatpak                 # Application sandboxing and distribution
+
+# ------------------------------------------------------------------------------
+# VIRTUALIZATION (partial - distro files add distro-specific packages)
+# ------------------------------------------------------------------------------
+virt-manager            # GUI for managing VMs
+
+# ------------------------------------------------------------------------------
+# SWAY ECOSYSTEM - see packages/sway.txt (conditionally installed)
+# ------------------------------------------------------------------------------
+
+# ==============================================================================
+# TOOLS MANAGED BY MISE (removed from system packages)
+# ==============================================================================
+# neovim, tmux, zellij, jq, ripgrep, fzf, fd, bat, eza, zoxide,
+# starship, lazygit, delta, yazi, btop, bottom, fastfetch, tlrc, lazyssh,
+# lima, opencode, cowsay, uv, chezmoi, node, python, go, lua, rust,
+# dust, duf, gh, direnv, just, hyperfine, glow, lua-language-server, stylua
+
+# ==============================================================================
+# TOOLS MANAGED BY HOMEBREW (not available in mise)
+# ==============================================================================
+# tree, p7zip, figlet, lolcat, asciiquarium, nushell, sshs, goose,
+# proxychains-ng, ykman

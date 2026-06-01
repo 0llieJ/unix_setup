@@ -1,0 +1,24 @@
+# ==============================================================================
+# homebrew.txt — Homebrew formulae (Linux + macOS)
+# ==============================================================================
+# These are CLI tools not available in mise's registry.
+# NOTE: Linux Homebrew does NOT support casks (GUI apps) — those go in flatpak.txt
+# ==============================================================================
+
+# Shell utilities
+nushell             # Modern shell with structured data pipelines
+
+# SSH
+sshs                # SSH session manager with fuzzy search
+
+# AI agents
+goose               # Block's open-source AI coding agent
+
+# Terminal fun
+asciiquarium        # Aquarium in the terminal
+
+# System
+proxychains-ng      # Route connections through proxy chains
+
+# YubiKey management (CLI)
+ykman               # YubiKey Manager CLI (yubikey-manager)

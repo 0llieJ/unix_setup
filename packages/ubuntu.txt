@@ -1,0 +1,61 @@
+# ==============================================================================
+# UBUNTU.TXT - Ubuntu packages (apt)
+# ==============================================================================
+# Packages here either have Ubuntu-specific names or require Ubuntu repos.
+# See common.txt for packages with identical names on all distros.
+#
+# Cross-distro comments show equivalent names on other distros.
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# SSH (fedora/arch=openssh)
+# ------------------------------------------------------------------------------
+openssh-client          # SSH client
+
+# ------------------------------------------------------------------------------
+# CRYPTOGRAPHY (fedora/arch=gnupg)
+# ------------------------------------------------------------------------------
+gnupg2                  # GNU Privacy Guard - encryption and signing
+
+# ------------------------------------------------------------------------------
+# SYSTEM TOOLS
+# ------------------------------------------------------------------------------
+polkit-gnome            # Authentication agent for privilege escalation
+
+# ------------------------------------------------------------------------------
+# COMPRESSION (fedora=p7zip-plugins, arch=p7zip)
+# ------------------------------------------------------------------------------
+p7zip                   # 7-Zip file archiver
+
+# ------------------------------------------------------------------------------
+# FONTS (fedora=*-fonts, arch=ttf-*)
+# ------------------------------------------------------------------------------
+fonts-firacode          # Fira Code - programming font with ligatures
+fonts-jetbrains-mono    # JetBrains Mono - programming font
+fonts-font-awesome      # Font Awesome icons (for waybar)
+
+# ------------------------------------------------------------------------------
+# VIRTUALIZATION (fedora=qemu-kvm, arch=qemu-full)
+# ------------------------------------------------------------------------------
+qemu-system-x86         # QEMU with KVM acceleration
+libvirt-daemon-system   # Virtualization API daemon (fedora/arch=libvirt)
+bridge-utils            # Network bridging for VMs
+
+# ------------------------------------------------------------------------------
+# TERMINAL EMULATORS (may need external repo)
+# ------------------------------------------------------------------------------
+ghostty                 # Modern terminal emulator
+wezterm                 # GPU-accelerated terminal with Lua config
+
+# ------------------------------------------------------------------------------
+# WEB BROWSER (requires vendor repo - enabled in setup_repos)
+# ------------------------------------------------------------------------------
+brave-browser           # Brave web browser (from repo)
+
+# ==============================================================================
+# MANAGED ELSEWHERE (see install priority: mise -> Flatpak -> Homebrew)
+# ==============================================================================
+# mise: languages, CLI tools, btop, fastfetch, tldr, lazyssh, lima, opencode
+# Homebrew: nushell, sshs, goose, tree, p7zip, figlet, lolcat, asciiquarium,
+#           proxychains-ng, ykman (yubikey-manager)
+# Flatpak: Zed, Zen Browser, Bitwarden, DevPod, Signal, Obsidian, etc.
