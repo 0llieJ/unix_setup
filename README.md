@@ -51,7 +51,7 @@ Optional modules (not in the default run):
 |--------|------|-------------|
 | 10 | sway-config | Configures SDDM/greetd, writes minimal Sway config, applies Flameshot Wayland fix |
 | 11 | remove | Cleanly removes a tool and its config files (see below) |
-| 12 | nvidia | Nvidia driver install — auto-detects GPU and kernel, handles stock vs DKMS |
+| 12 | hardware | CPU microcode (Intel/AMD) + GPU drivers (Nvidia/AMD/Intel) — auto-detects everything |
 
 ---
 

@@ -143,6 +143,54 @@ detect_bootloader() {
 }
 
 # ------------------------------------------------------------------------------
+# detect_cpu
+# Reads /proc/cpuinfo to identify the CPU vendor.
+# Sets CPU_VENDOR to "intel", "amd", or "unknown".
+# Used by module 12 to install the correct microcode package.
+# ------------------------------------------------------------------------------
+detect_cpu() {
+    local vendor
+    vendor=$(grep -m1 "vendor_id" /proc/cpuinfo 2>/dev/null | awk '{print $3}')
+    case "$vendor" in
+        GenuineIntel) CPU_VENDOR="intel" ;;
+        AuthenticAMD) CPU_VENDOR="amd"   ;;
+        *)            CPU_VENDOR="unknown" ;;
+    esac
+    export CPU_VENDOR
+}
+
+# ------------------------------------------------------------------------------
+# detect_gpu
+# Uses lspci to identify the discrete GPU vendor.
+# Sets GPU_VENDOR to "nvidia", "amd", "intel", or "unknown".
+# Used by module 12 to install the correct GPU driver.
+# Note: on systems with both integrated and discrete GPUs, discrete takes
+# priority (checked first).
+# ------------------------------------------------------------------------------
+detect_gpu() {
+    if ! command -v lspci &>/dev/null; then
+        GPU_VENDOR="unknown"
+        export GPU_VENDOR
+        return
+    fi
+
+    local lspci_out
+    lspci_out=$(lspci 2>/dev/null)
+
+    if echo "$lspci_out" | grep -qi "nvidia"; then
+        GPU_VENDOR="nvidia"
+    elif echo "$lspci_out" | grep -qiE "radeon|amd.*display|advanced micro.*display"; then
+        GPU_VENDOR="amd"
+    elif echo "$lspci_out" | grep -qi "intel.*display\|intel.*graphics\|intel.*uhd\|intel.*iris"; then
+        GPU_VENDOR="intel"
+    else
+        GPU_VENDOR="unknown"
+    fi
+
+    export GPU_VENDOR
+}
+
+# ------------------------------------------------------------------------------
 # detect_all — convenience wrapper that runs every detection function in order.
 # Call this once at the top of setup.sh; all modules inherit the exported vars.
 # ------------------------------------------------------------------------------
@@ -151,4 +199,6 @@ detect_all() {
     detect_pkg_manager
     detect_filesystem
     detect_bootloader
+    detect_cpu
+    detect_gpu
 }
