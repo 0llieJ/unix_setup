@@ -32,20 +32,63 @@ _MODULE_REPOS_LOADED=1
 setup_repos_arch() {
     log_info "Arch: checking AUR helper..."
 
-    # Do a full system upgrade before installing paru. This ensures pacman and
-    # libalpm are at their latest version before paru-bin is built against them.
-    # Without this, a pacman upgrade later in module 03 bumps libalpm and breaks
-    # the paru binary with "cannot open shared object file: libalpm.so.XX".
+    # Do a full system upgrade before installing or repairing paru. This ensures
+    # pacman and libalpm are at their latest version before paru-bin is built
+    # against them. Without this, a pacman upgrade later in module 03 bumps
+    # libalpm and breaks paru with "cannot open shared object file: libalpm.so.XX".
     log_info "Running full system upgrade before building paru..."
     run_cmd sudo pacman -Syu --noconfirm
 
     if cmd_exists paru; then
-        log_info "paru already installed, skipping"
+        # paru binary exists — check it actually works. A pacman upgrade can
+        # bump libalpm to a new version and break paru even though the binary
+        # is still present on disk.
+        repair_paru_if_broken
         return
     fi
 
     log_info "Installing paru (AUR helper)..."
+    _build_paru
+}
 
+# ------------------------------------------------------------------------------
+# repair_paru_if_broken
+# Tests whether paru can load successfully by running `paru --version`.
+# If it fails with a shared library error (libalpm version mismatch after a
+# pacman upgrade), automatically rebuilds paru-bin from the AUR against the
+# current libalpm version.
+#
+# This can happen mid-setup: module 02 installs paru, module 03 upgrades
+# pacman (bumping libalpm), and then paru is broken for the AUR install step.
+# Running this check at the start of module 02 catches it on re-runs.
+# ------------------------------------------------------------------------------
+repair_paru_if_broken() {
+    # Try running paru — capture stderr to check for library errors
+    local paru_err
+    paru_err=$(paru --version 2>&1 >/dev/null)
+
+    if echo "$paru_err" | grep -q "cannot open shared object file"; then
+        log_warn "paru is broken: $paru_err"
+        log_warn "libalpm was likely upgraded by pacman — rebuilding paru-bin..."
+
+        if [[ "$DRY_RUN" == true ]]; then
+            log_info "[DRY-RUN] Would rebuild paru-bin from AUR"
+            return
+        fi
+
+        _build_paru
+        log_success "paru rebuilt successfully"
+    else
+        log_info "paru is working correctly"
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# _build_paru
+# Shared helper that clones paru-bin from the AUR and builds it with makepkg.
+# Called by both setup_repos_arch (fresh install) and repair_paru_if_broken.
+# ------------------------------------------------------------------------------
+_build_paru() {
     if [[ "$DRY_RUN" == true ]]; then
         log_info "[DRY-RUN] Would clone and build paru-bin from AUR"
         return
