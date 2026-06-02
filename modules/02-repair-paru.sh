@@ -56,50 +56,38 @@ main() {
     # Ensure build tools are available
     run_cmd sudo pacman -S --needed --noconfirm base-devel git
 
-    # Step 1 — remove the broken paru completely, then reinstall paru-bin fresh.
-    # Simply reinstalling over the top reuses the cached binary which is still
-    # linked against the old libalpm. Removing first forces a clean download.
+    # Remove the broken paru completely.
+    # Reinstalling over the top reuses the cached binary which is still linked
+    # against the old libalpm. Removing first forces a clean download.
     log_info "Removing broken paru..."
     run_cmd sudo pacman -Rns --noconfirm paru paru-bin paru-bin-debug 2>/dev/null || true
 
-    log_info "Installing paru-bin fresh from AUR..."
+    # Upgrade the full system so libalpm is at the latest version before
+    # the new paru-bin is downloaded and installed against it.
+    log_info "Upgrading system to latest libalpm..."
+    run_cmd sudo pacman -Syu --noconfirm
+
+    # Reinstall paru-bin fresh — the new download will be compiled against
+    # the current libalpm version.
+    log_info "Reinstalling paru-bin from AUR..."
     local tmpdir
     tmpdir=$(mktemp -d)
     git clone --depth=1 https://aur.archlinux.org/paru-bin.git "$tmpdir/paru-bin"
     (cd "$tmpdir/paru-bin" && makepkg -si --noconfirm)
     rm -rf "$tmpdir"
 
-    # Check if that fixed it
+    # Verify it works
     local new_version
     new_version=$(paru --version 2>&1) || true
-    if ! echo "$new_version" | grep -q "cannot open shared object file"; then
-        log_success "paru reinstalled successfully: $new_version"
-        log_info "Continue setup with: bash ~/unix_setup/setup.sh --only 03"
-        return 0
-    fi
-
-    # Step 2 — paru-bin is still broken. The AUR maintainer hasn't updated
-    # the pre-compiled binary yet for the new libalpm version. Build from
-    # source instead — this compiles against whatever libalpm is installed.
-    log_warn "paru-bin binary is still linked against old libalpm"
-    log_info "Falling back to building paru from source (requires Rust — takes a few minutes)..."
-
-    run_cmd sudo pacman -S --needed --noconfirm rust
-
-    tmpdir=$(mktemp -d)
-    git clone --depth=1 https://aur.archlinux.org/paru.git "$tmpdir/paru"
-    (cd "$tmpdir/paru" && makepkg -si --noconfirm)
-    rm -rf "$tmpdir"
-
-    # Final check
-    new_version=$(paru --version 2>&1) || true
     if echo "$new_version" | grep -q "cannot open shared object file"; then
-        log_error "Both reinstall and source build failed — something else is wrong"
-        log_error "Check: pacman -Q libalpm  and  ldd \$(which paru)"
+        log_error "paru is still broken after reinstall."
+        log_error "The AUR maintainer may not have updated paru-bin for the current libalpm yet."
+        log_error "Check https://aur.archlinux.org/packages/paru-bin for the latest build date."
+        log_error "Try again in a few hours when the package has been updated."
         return 1
     fi
 
-    log_success "paru built from source: $new_version"
+    log_success "paru reinstalled successfully: $new_version"
     log_info "Continue setup with: bash ~/unix_setup/setup.sh --only 03"
 }
 
