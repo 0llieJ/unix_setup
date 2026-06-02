@@ -85,6 +85,25 @@ Tools are installed in this order, with earlier sources preferred:
 
 ---
 
+## Recommended partition layout
+
+For snapshots and rollbacks to work safely, `/boot` must be on a **separate partition** from Btrfs. If `/boot` is inside Btrfs, a rollback will revert your kernel and bootloader config alongside the OS — which can leave the system unbootable.
+
+```
+/dev/nvme0n1p1   fat32   /boot/efi    512MB   EFI system partition
+/dev/nvme0n1p2   ext4    /boot        1GB     Kernel and initramfs (separate, not in Btrfs)
+/dev/nvme0n1p3   btrfs   /            rest
+  subvol @        →  /
+  subvol @home    →  /home
+  subvol @snapshots → /.snapshots
+```
+
+With this layout, rolling back `/` never touches `/boot` — the bootloader always reflects the current kernel and stays bootable. Module 06 will warn you at runtime if `/boot` doesn't appear to be on a separate partition.
+
+`archinstall` can set this layout up automatically during installation.
+
+---
+
 ## Snapshotting and rollback
 
 On any system with a **Btrfs root filesystem**, module 06 sets up:

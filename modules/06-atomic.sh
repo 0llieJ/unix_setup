@@ -43,6 +43,57 @@
 _MODULE_ATOMIC_LOADED=1
 
 # ------------------------------------------------------------------------------
+# check_boot_partition
+# Warns if /boot appears to be inside the Btrfs root rather than on its own
+# separate partition.
+#
+# WHY THIS MATTERS:
+# If /boot lives inside Btrfs, it is included in snapshots. Rolling back to a
+# snapshot would revert the kernel, initramfs, and bootloader config to the
+# snapshot's state — which may not match the bootloader binary on the EFI
+# partition. This can make the system unbootable after a rollback.
+#
+# The safe layout is:
+#   /boot/efi  → separate FAT32 EFI partition  (bootloader binary lives here)
+#   /boot      → separate ext4 or FAT32 partition  (kernel/initramfs live here)
+#   /          → Btrfs subvolume @  (snapshots capture this only)
+#
+# With this layout, rolling back / never touches /boot, so the bootloader
+# always reflects the current kernel state and stays bootable.
+#
+# This is a WARNING only — setup continues regardless. Fix the layout during
+# OS reinstall if needed (archinstall can set this up automatically).
+# ------------------------------------------------------------------------------
+check_boot_partition() {
+    local boot_fs
+    boot_fs="$(findmnt -n -o FSTYPE /boot 2>/dev/null || echo "unknown")"
+
+    if [[ "$boot_fs" == "btrfs" ]] || [[ "$boot_fs" == "unknown" ]]; then
+        # /boot is either on Btrfs or not mounted separately — both are risky
+        echo ""
+        log_warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        log_warn "PARTITION LAYOUT WARNING"
+        log_warn ""
+        log_warn "/boot does not appear to be on a separate partition."
+        log_warn "If /boot is inside Btrfs, snapshots will include your kernel"
+        log_warn "and bootloader config — rolling back can make the system"
+        log_warn "unbootable if the snapshot kernel doesn't match the EFI binary."
+        log_warn ""
+        log_warn "Safe layout:"
+        log_warn "  /boot/efi  → separate FAT32 EFI partition"
+        log_warn "  /boot      → separate ext4 partition"
+        log_warn "  /          → Btrfs subvol @ (snapshots capture this only)"
+        log_warn ""
+        log_warn "Setup will continue, but fix this during your next reinstall."
+        log_warn "archinstall can set this up automatically."
+        log_warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo ""
+    else
+        log_success "/boot is on a separate $boot_fs partition — snapshots will not include it"
+    fi
+}
+
+# ------------------------------------------------------------------------------
 # check_btrfs
 # Exits the module early if the root filesystem is not Btrfs.
 # Snapper, grub-btrfs, systemd-boot-btrfs, and limine-snapper-sync are all
@@ -213,6 +264,12 @@ setup_bootloader_integration() {
 #               This keeps the boot menu in sync automatically without any
 #               manual intervention after upgrades.
 #
+# SAFETY: We configure grub-btrfs to only include snapshots that contain a
+# kernel image. Without this, grub-btrfs generates entries for every snapshot
+# regardless of whether it's actually bootable — selecting an entry without a
+# kernel causes a boot failure. The GRUB_BTRFS_CHECK_EXISTING_LINUX_KERNEL
+# option filters these out so only valid bootable snapshots appear.
+#
 # After installing, grub-mkconfig is run once to populate the menu immediately.
 # The correct grub-mkconfig path differs by distro.
 # ------------------------------------------------------------------------------
@@ -224,6 +281,27 @@ _setup_grub_btrfs() {
     if ! cmd_exists grub-btrfsd && [[ "$DISTRO_FAMILY" == "arch" ]]; then
         log_info "Installing grub-btrfs and inotify-tools via paru..."
         run_cmd paru -S --needed --noconfirm grub-btrfs inotify-tools
+    fi
+
+    # Configure grub-btrfs to skip snapshots that don't contain a kernel.
+    # This prevents GRUB showing entries that look bootable but aren't —
+    # selecting one would drop you to a GRUB rescue shell instead of booting.
+    local grub_btrfs_config="/etc/default/grub-btrfs/config"
+    if [[ -f "$grub_btrfs_config" ]]; then
+        log_info "Configuring grub-btrfs to only show bootable snapshots..."
+        if [[ "$DRY_RUN" != true ]]; then
+            # GRUB_BTRFS_CHECK_EXISTING_LINUX_KERNEL: only add GRUB entries for
+            # snapshots that actually contain a kernel in /boot — skips any
+            # snapshot taken before a kernel was installed, or read-only snaps
+            # where /boot wasn't captured.
+            sudo sed -i \
+                's/^#*GRUB_BTRFS_CHECK_EXISTING_LINUX_KERNEL=.*/GRUB_BTRFS_CHECK_EXISTING_LINUX_KERNEL="true"/' \
+                "$grub_btrfs_config" || \
+            echo 'GRUB_BTRFS_CHECK_EXISTING_LINUX_KERNEL="true"' \
+                | sudo tee -a "$grub_btrfs_config" > /dev/null
+        else
+            log_info "[DRY-RUN] Would set GRUB_BTRFS_CHECK_EXISTING_LINUX_KERNEL=true in $grub_btrfs_config"
+        fi
     fi
 
     # Enable grub-btrfsd so the GRUB menu updates automatically on each snapshot
@@ -238,7 +316,7 @@ _setup_grub_btrfs() {
         *)             log_warn "Don't know how to run grub-mkconfig on '$DISTRO_FAMILY'" ;;
     esac
 
-    log_success "grub-btrfs configured — snapshots will appear in GRUB menu"
+    log_success "grub-btrfs configured — only bootable snapshots will appear in GRUB menu"
 }
 
 # ------------------------------------------------------------------------------
@@ -319,10 +397,14 @@ _setup_limine_snapper() {
 # main
 # ------------------------------------------------------------------------------
 main() {
-    log_section "Module 05: Atomic (Snapshotting)"
+    log_section "Module 06: Atomic (Snapshotting)"
 
     # Exit early if root is not Btrfs — nothing in this module applies
     check_btrfs || return 0
+
+    # Warn if /boot is not on a separate partition — snapshots including /boot
+    # can make rollbacks unbootable
+    check_boot_partition
 
     setup_snapper
     setup_timeshift
