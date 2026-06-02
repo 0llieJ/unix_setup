@@ -31,6 +31,16 @@ _MODULE_SYSTEM_LOADED=1
 setup_firewall() {
     log_section "Firewall"
 
+    if [[ "$DISTRO_FAMILY" == "macos" ]]; then
+        # macOS has a built-in Application Firewall managed via System Settings.
+        # Enable it via socketfilterfw and set to block all incoming connections.
+        log_info "Configuring macOS Application Firewall..."
+        run_cmd sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate on
+        run_cmd sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setblockall on
+        log_success "macOS Application Firewall enabled (block all incoming)"
+        return
+    fi
+
     if cmd_exists firewall-cmd; then
         # firewalld — Fedora/RHEL default. Uses zones; "public" is the default zone.
         log_info "Configuring firewalld..."
@@ -82,6 +92,14 @@ setup_firewall() {
 # ------------------------------------------------------------------------------
 setup_user_groups() {
     log_section "User groups"
+
+    # macOS manages groups differently — dscl rather than usermod/getent.
+    # The groups that matter on Linux (wheel, libvirt, video etc.) don't exist
+    # on macOS in the same form. Admin access is managed via System Settings.
+    if [[ "$DISTRO_FAMILY" == "macos" ]]; then
+        log_info "macOS: group management handled via System Settings — skipping"
+        return
+    fi
 
     # Groups the current user should belong to:
     #   wheel / sudo  — sudo access (wheel = Arch/Fedora, sudo = Ubuntu/Debian)

@@ -9,25 +9,36 @@
 # After calling detect_all(), the following variables are available everywhere:
 #
 #   OS_ID          — raw distro ID from /etc/os-release  (e.g. "arch", "fedora")
-#   OS_ID_LIKE     — space-separated list of similar distros (e.g. "debian ubuntu")
-#   OS_NAME        — human-readable distro name           (e.g. "Arch Linux")
-#   OS_VERSION     — version string if the distro has one (e.g. "40" for Fedora 40)
-#   DISTRO_FAMILY  — normalised family: arch | fedora | ubuntu | debian | unknown
-#   PKG_MANAGER    — package manager to use: pacman | dnf | apt | unknown
-#   ROOT_FS        — filesystem type of /                 (e.g. "btrfs", "ext4")
-#   BOOTLOADER     — detected bootloader: grub | systemd-boot | limine | unknown
+#                    "macos" on macOS
+#   OS_ID_LIKE     — space-separated list of similar distros (linux only)
+#   OS_NAME        — human-readable name  (e.g. "Arch Linux", "macOS 15.0")
+#   OS_VERSION     — version string       (e.g. "40" for Fedora 40)
+#   DISTRO_FAMILY  — arch | fedora | ubuntu | debian | macos | unknown
+#   PKG_MANAGER    — pacman | dnf | apt | brew | unknown
+#   ROOT_FS        — filesystem type of / (e.g. "btrfs", "apfs", "ext4")
+#   BOOTLOADER     — grub | systemd-boot | limine | unknown (always unknown on macOS)
+#   CPU_VENDOR     — intel | amd | apple | unknown
+#   GPU_VENDOR     — nvidia | amd | intel | apple | unknown
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
 # detect_os
-# Reads /etc/os-release (the standard Linux distro identification file) and
-# maps the raw ID to one of four known families. Derivatives like CachyOS and
-# EndeavourOS are recognised as Arch; Rocky and Alma are recognised as Fedora.
-# ID_LIKE is used as a fallback for distros that don't match a known ID directly.
+# On Linux reads /etc/os-release and maps the ID to a known family.
+# On macOS reads sw_vers to get the version, and sets DISTRO_FAMILY="macos".
 # ------------------------------------------------------------------------------
 detect_os() {
+    # macOS doesn't have /etc/os-release — detect it first via uname
+    if [[ "$(uname -s)" == "Darwin" ]]; then
+        OS_ID="macos"
+        OS_ID_LIKE=""
+        OS_NAME="macOS $(sw_vers -productVersion 2>/dev/null || echo '')"
+        OS_VERSION="$(sw_vers -productVersion 2>/dev/null || echo '')"
+        DISTRO_FAMILY="macos"
+        export OS_ID OS_ID_LIKE OS_NAME OS_VERSION DISTRO_FAMILY
+        return
+    fi
+
     if [[ -f /etc/os-release ]]; then
-        # Source the file — it sets ID, ID_LIKE, NAME, VERSION_ID, etc.
         # shellcheck source=/dev/null
         . /etc/os-release
         OS_ID="${ID:-unknown}"
@@ -35,16 +46,12 @@ detect_os() {
         OS_NAME="${NAME:-unknown}"
         OS_VERSION="${VERSION_ID:-}"
     else
-        # /etc/os-release missing — very old or unusual system
         OS_ID="unknown"
         OS_ID_LIKE=""
         OS_NAME="unknown"
         OS_VERSION=""
     fi
 
-    # Map the raw distro ID to a normalised family string.
-    # Modules use DISTRO_FAMILY rather than OS_ID so they don't need to know
-    # about every Arch/Fedora/Debian derivative individually.
     case "$OS_ID" in
         arch|cachyos|endeavouros|garuda|manjaro)
             DISTRO_FAMILY="arch" ;;
@@ -55,7 +62,6 @@ detect_os() {
         debian)
             DISTRO_FAMILY="debian" ;;
         *)
-            # ID didn't match — try ID_LIKE (e.g. Linux Mint has ID_LIKE="ubuntu")
             case "$OS_ID_LIKE" in
                 *arch*)          DISTRO_FAMILY="arch"   ;;
                 *fedora*|*rhel*) DISTRO_FAMILY="fedora" ;;
@@ -70,19 +76,21 @@ detect_os() {
 
 # ------------------------------------------------------------------------------
 # detect_pkg_manager
-# Sets PKG_MANAGER based on DISTRO_FAMILY. Must be called after detect_os().
-# Falls back to probing $PATH if the family is unknown.
+# On macOS, Homebrew is the package manager. brew may not be in PATH yet on a
+# fresh machine — we still set PKG_MANAGER="brew" so modules know what to use,
+# and module 02-repos.sh handles installing Homebrew if it's missing.
 # ------------------------------------------------------------------------------
 detect_pkg_manager() {
     case "$DISTRO_FAMILY" in
         arch)          PKG_MANAGER="pacman" ;;
         fedora)        PKG_MANAGER="dnf"    ;;
         ubuntu|debian) PKG_MANAGER="apt"    ;;
+        macos)         PKG_MANAGER="brew"   ;;
         *)
-            # Unknown family — check what's actually installed
             if   command -v pacman &>/dev/null; then PKG_MANAGER="pacman"
             elif command -v dnf    &>/dev/null; then PKG_MANAGER="dnf"
             elif command -v apt    &>/dev/null; then PKG_MANAGER="apt"
+            elif command -v brew   &>/dev/null; then PKG_MANAGER="brew"
             else PKG_MANAGER="unknown"
             fi ;;
     esac
@@ -91,50 +99,41 @@ detect_pkg_manager() {
 
 # ------------------------------------------------------------------------------
 # detect_filesystem
-# Uses `findmnt` to check the filesystem type of the root partition (/).
-# This is used by the atomic module (05-atomic.sh) to decide whether
-# snapper/grub-btrfs/systemd-boot-btrfs should be set up — those tools only
-# work on Btrfs. If the root is ext4 or xfs, snapshotting is skipped or falls
-# back to Timeshift in rsync mode.
+# On Linux uses findmnt. On macOS uses diskutil to get the filesystem type of
+# the root volume — almost always "apfs" on modern Macs.
+# Snapshotting modules check ROOT_FS and skip themselves on non-Btrfs / APFS.
 # ------------------------------------------------------------------------------
 detect_filesystem() {
-    ROOT_FS="$(findmnt -n -o FSTYPE / 2>/dev/null || echo "unknown")"
+    if [[ "$DISTRO_FAMILY" == "macos" ]]; then
+        # diskutil info / | grep "Type" gives e.g. "Type (Bundle):  apfs"
+        ROOT_FS="$(diskutil info / 2>/dev/null | awk '/Type \(Bundle\)/{print $NF}' || echo "apfs")"
+    else
+        ROOT_FS="$(findmnt -n -o FSTYPE / 2>/dev/null || echo "unknown")"
+    fi
     export ROOT_FS
 }
 
 # ------------------------------------------------------------------------------
 # detect_bootloader
-# Checks known paths and EFI entries to figure out which bootloader is in use.
-# The result drives which snapshot-boot-menu integration tool gets installed:
-#
-#   grub         → grub-btrfs + grub-btrfsd (auto-updates GRUB menu from snapshots)
-#   systemd-boot → systemd-boot-btrfs (AUR) — generates loader entries per snapshot
-#   limine       → limine-snapper-sync (AUR) — syncs Limine entries from snapshots
-#   unknown      → warning shown; boot menu integration is skipped
-#
-# Detection order matters — systemd-boot is checked first because /boot/loader
-# can coexist with a grub.cfg on some setups.
+# Not applicable on macOS — the bootloader is the Apple firmware (iBoot) which
+# can't be configured from userspace. Set to "unknown" and modules that care
+# about the bootloader skip themselves on macOS.
 # ------------------------------------------------------------------------------
 detect_bootloader() {
+    if [[ "$DISTRO_FAMILY" == "macos" ]]; then
+        BOOTLOADER="unknown"
+        export BOOTLOADER
+        return
+    fi
+
     BOOTLOADER="unknown"
 
-    # systemd-boot creates a /boot/loader directory with loader.conf and an
-    # entries/ subdirectory for individual boot entries.
     if [[ -d /boot/loader/entries ]] || [[ -f /boot/loader/loader.conf ]]; then
         BOOTLOADER="systemd-boot"
-
-    # GRUB writes its config to /boot/grub/grub.cfg (Arch/Ubuntu/Debian) or
-    # /boot/grub2/grub.cfg (Fedora/RHEL).
     elif [[ -f /boot/grub/grub.cfg ]] || [[ -f /boot/grub2/grub.cfg ]]; then
         BOOTLOADER="grub"
-
-    # Limine stores its config at /boot/limine.conf or /boot/limine/limine.conf
     elif [[ -f /boot/limine.conf ]] || [[ -f /boot/limine/limine.conf ]]; then
         BOOTLOADER="limine"
-
-    # Last resort — ask bootctl (systemd-boot's management tool) if it's active.
-    # This catches installs where /boot/loader exists on a separate EFI partition
-    # that isn't mounted at detection time.
     elif command -v bootctl &>/dev/null && bootctl status 2>/dev/null | grep -qi "systemd-boot"; then
         BOOTLOADER="systemd-boot"
     fi
@@ -144,11 +143,25 @@ detect_bootloader() {
 
 # ------------------------------------------------------------------------------
 # detect_cpu
-# Reads /proc/cpuinfo to identify the CPU vendor.
-# Sets CPU_VENDOR to "intel", "amd", or "unknown".
-# Used by module 12 to install the correct microcode package.
+# On Linux reads /proc/cpuinfo. On macOS uses sysctl.
+# Apple Silicon (M1/M2/M3/M4) reports as "apple" — no microcode package exists
+# for Apple Silicon since the firmware is managed by Apple directly.
 # ------------------------------------------------------------------------------
 detect_cpu() {
+    if [[ "$DISTRO_FAMILY" == "macos" ]]; then
+        local brand
+        brand="$(sysctl -n machdep.cpu.brand_string 2>/dev/null || echo '')"
+        if echo "$brand" | grep -qi "apple"; then
+            CPU_VENDOR="apple"
+        elif echo "$brand" | grep -qi "intel"; then
+            CPU_VENDOR="intel"
+        else
+            CPU_VENDOR="unknown"
+        fi
+        export CPU_VENDOR
+        return
+    fi
+
     local vendor
     vendor=$(grep -m1 "vendor_id" /proc/cpuinfo 2>/dev/null | awk '{print $3}')
     case "$vendor" in
@@ -161,13 +174,28 @@ detect_cpu() {
 
 # ------------------------------------------------------------------------------
 # detect_gpu
-# Uses lspci to identify the discrete GPU vendor.
-# Sets GPU_VENDOR to "nvidia", "amd", "intel", or "unknown".
-# Used by module 12 to install the correct GPU driver.
-# Note: on systems with both integrated and discrete GPUs, discrete takes
-# priority (checked first).
+# On Linux uses lspci. On macOS uses system_profiler — works for both
+# integrated and discrete GPUs, including Apple Silicon's integrated GPU.
 # ------------------------------------------------------------------------------
 detect_gpu() {
+    if [[ "$DISTRO_FAMILY" == "macos" ]]; then
+        local gpu_info
+        gpu_info="$(system_profiler SPDisplaysDataType 2>/dev/null | grep -i "chipset\|vendor\|model")"
+        if echo "$gpu_info" | grep -qi "apple"; then
+            GPU_VENDOR="apple"
+        elif echo "$gpu_info" | grep -qi "nvidia"; then
+            GPU_VENDOR="nvidia"
+        elif echo "$gpu_info" | grep -qi "amd\|radeon"; then
+            GPU_VENDOR="amd"
+        elif echo "$gpu_info" | grep -qi "intel"; then
+            GPU_VENDOR="intel"
+        else
+            GPU_VENDOR="unknown"
+        fi
+        export GPU_VENDOR
+        return
+    fi
+
     if ! command -v lspci &>/dev/null; then
         GPU_VENDOR="unknown"
         export GPU_VENDOR
@@ -192,7 +220,6 @@ detect_gpu() {
 
 # ------------------------------------------------------------------------------
 # detect_all — convenience wrapper that runs every detection function in order.
-# Call this once at the top of setup.sh; all modules inherit the exported vars.
 # ------------------------------------------------------------------------------
 detect_all() {
     detect_os

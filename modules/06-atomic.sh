@@ -399,18 +399,24 @@ _setup_limine_snapper() {
 main() {
     log_section "Module 06: Atomic (Snapshotting)"
 
+    # Snapshotting is Linux + Btrfs only — macOS uses APFS snapshots via
+    # Time Machine, which doesn't need configuring here
+    if [[ "$DISTRO_FAMILY" == "macos" ]]; then
+        log_info "macOS: snapshotting handled by Time Machine — skipping"
+        return 0
+    fi
+
     # Exit early if root is not Btrfs — nothing in this module applies
     check_btrfs || return 0
 
-    # Warn if /boot is not on a separate partition — snapshots including /boot
-    # can make rollbacks unbootable
+    # Warn if /boot is not on a separate partition
     check_boot_partition
 
     setup_snapper
     setup_timeshift
     setup_bootloader_integration
 
-    log_success "Module 05 complete"
+    log_success "Module 06 complete"
     log_info "Rollback: snapper list  →  sudo snapper rollback <number>"
 }
 

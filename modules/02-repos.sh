@@ -172,6 +172,11 @@ main() {
         fedora) setup_repos_fedora ;;
         ubuntu) setup_repos_ubuntu ;;
         debian) setup_repos_debian ;;
+        macos)
+            # On macOS, Homebrew itself is the package source — no separate repos
+            # to add. Homebrew is installed in 04-userland.sh if not already present.
+            log_info "macOS: Homebrew is the package source — no repos to add"
+            ;;
         *)
             log_warn "Unknown distro family '$DISTRO_FAMILY' — skipping repo setup"
             ;;

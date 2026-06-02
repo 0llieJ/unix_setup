@@ -86,6 +86,8 @@ log_info "Distro:      $OS_NAME ($DISTRO_FAMILY)"
 log_info "Pkg manager: $PKG_MANAGER"
 log_info "Root FS:     $ROOT_FS"
 log_info "Bootloader:  $BOOTLOADER"
+log_info "CPU:         $CPU_VENDOR"
+log_info "GPU:         $GPU_VENDOR"
 log_info "Dry run:     $DRY_RUN"
 log_info "Log file:    $LOG_FILE"
 echo ""
@@ -94,7 +96,7 @@ echo ""
 # half a setup with the wrong package manager
 if [[ "$DISTRO_FAMILY" == "unknown" || "$PKG_MANAGER" == "unknown" ]]; then
     log_error "Could not detect distro or package manager."
-    log_error "Supported: Arch (and derivatives), Fedora, Ubuntu, Debian"
+    log_error "Supported: Arch (and derivatives), Fedora, Ubuntu, Debian, macOS"
     exit 1
 fi
 

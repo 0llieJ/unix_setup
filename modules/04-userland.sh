@@ -79,6 +79,13 @@ install_mise() {
 install_flatpak() {
     log_section "Flatpak (GUI applications)"
 
+    # Flatpak is Linux-only. On macOS, GUI apps are installed as Homebrew casks
+    # by install_macos_casks() below.
+    if [[ "$DISTRO_FAMILY" == "macos" ]]; then
+        log_info "macOS: GUI apps installed as Homebrew casks — skipping Flatpak"
+        return
+    fi
+
     if ! cmd_exists flatpak; then
         log_warn "flatpak binary not found — was it installed by 03-packages.sh?"
         return
@@ -186,6 +193,45 @@ install_homebrew() {
 }
 
 # ------------------------------------------------------------------------------
+# install_macos_casks
+# macOS only. Installs GUI applications as Homebrew casks from
+# packages/macos-casks.txt. Casks are macOS app bundles (.app) distributed
+# via Homebrew — the macOS equivalent of Flatpak apps.
+#
+# Unlike formulae (CLI tools), casks require macOS and cannot be installed
+# on Linux. The cask list is intentionally separate from homebrew.txt so
+# the two platforms don't interfere with each other.
+# ------------------------------------------------------------------------------
+install_macos_casks() {
+    [[ "$DISTRO_FAMILY" != "macos" ]] && return
+
+    log_section "Homebrew casks (macOS GUI apps)"
+
+    local brew_bin
+    brew_bin="$(command -v brew 2>/dev/null \
+        || echo "/opt/homebrew/bin/brew")"   # Apple Silicon default prefix
+
+    if [[ ! -x "$brew_bin" ]]; then
+        log_error "brew not found — did Homebrew install correctly?"
+        return 1
+    fi
+
+    mapfile -t casks < <(read_package_list "$PACKAGES_DIR/macos-casks.txt")
+
+    if [[ ${#casks[@]} -eq 0 ]]; then
+        log_info "No casks listed in packages/macos-casks.txt, skipping"
+        return
+    fi
+
+    log_info "Installing ${#casks[@]} casks..."
+    # --no-quarantine bypasses macOS Gatekeeper quarantine flag which causes
+    # an "unidentified developer" prompt on first launch for unsigned apps
+    run_cmd "$brew_bin" install --cask --no-quarantine "${casks[@]}"
+
+    log_success "macOS casks installed"
+}
+
+# ------------------------------------------------------------------------------
 # main
 # ------------------------------------------------------------------------------
 main() {
@@ -194,6 +240,7 @@ main() {
     install_mise
     install_flatpak
     install_homebrew
+    install_macos_casks
 
     log_success "Module 04 complete"
 }

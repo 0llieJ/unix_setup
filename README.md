@@ -423,3 +423,18 @@ _install_mytool() {
 | Fedora | Full — AUR packages not available |
 | Ubuntu | Full — AUR packages not available |
 | Debian | Full — AUR packages not available |
+| macOS | Core — Homebrew formulae, casks, mise, dotfiles. No Sway/Flatpak/Snapper |
+
+### What runs on macOS
+
+| Module | Behaviour |
+|--------|-----------|
+| 01 system | Application Firewall enabled. Groups skipped (managed via System Settings) |
+| 02 repos | Skipped — Homebrew is the only package source |
+| 03 packages | Skipped — formulae installed by module 04 instead |
+| 04 userland | Homebrew formulae + casks (`packages/macos-casks.txt`) + mise |
+| 05 github | Full — Claude Code, DevPod, Nerd Fonts, Codex all work on macOS |
+| 06 atomic | Skipped — use Time Machine for backups |
+| 07 proton | rclone remote checked; auto-mount skipped (no systemd). Manual mount instructions printed |
+| 08 dotfiles | Full — chezmoi works on macOS |
+| 12 hardware | Skipped — Apple manages firmware via Software Update |

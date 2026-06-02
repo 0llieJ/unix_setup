@@ -354,6 +354,15 @@ main() {
     log_info "Bootloader : $BOOTLOADER"
     echo ""
 
+    # macOS manages all hardware firmware (including CPU microcode and GPU drivers)
+    # through Apple's own update mechanism — System Settings → General → Software Update.
+    # There is nothing to install here on macOS.
+    if [[ "$DISTRO_FAMILY" == "macos" ]]; then
+        log_info "macOS: hardware firmware managed by Apple Software Update — skipping"
+        log_info "Keep your Mac up to date via: System Settings → General → Software Update"
+        return 0
+    fi
+
     # Microcode runs automatically — it's always safe and always needed.
     install_microcode
 

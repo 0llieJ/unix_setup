@@ -1,0 +1,62 @@
+# ==============================================================================
+# macos-casks.txt — Homebrew casks (macOS GUI applications)
+# ==============================================================================
+# Casks are macOS app bundles installed via Homebrew. Linux cannot use casks —
+# GUI apps on Linux go in flatpak.txt instead.
+#
+# Installed by module 04-userland.sh on macOS only.
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# Terminal emulators
+# ------------------------------------------------------------------------------
+ghostty                 # Modern GPU-accelerated terminal emulator
+wezterm                 # GPU-accelerated terminal with Lua config
+
+# ------------------------------------------------------------------------------
+# Web browsers
+# ------------------------------------------------------------------------------
+brave-browser           # Brave - privacy-focused Chromium browser
+zen-browser             # Zen - privacy-focused Firefox fork
+
+# ------------------------------------------------------------------------------
+# Password managers
+# ------------------------------------------------------------------------------
+bitwarden               # Bitwarden - open source password manager
+keepassxc               # KeePassXC - offline password manager
+
+# ------------------------------------------------------------------------------
+# Notes and productivity
+# ------------------------------------------------------------------------------
+obsidian                # Obsidian - knowledge base / note-taking
+
+# ------------------------------------------------------------------------------
+# Communication
+# ------------------------------------------------------------------------------
+signal                  # Signal - encrypted messaging
+
+# ------------------------------------------------------------------------------
+# Security and encryption
+# ------------------------------------------------------------------------------
+cryptomator             # Cryptomator - cloud storage encryption
+
+# ------------------------------------------------------------------------------
+# Media
+# ------------------------------------------------------------------------------
+vlc                     # VLC - universal media player
+spotify                 # Spotify - music streaming
+
+# ------------------------------------------------------------------------------
+# VPN
+# ------------------------------------------------------------------------------
+protonvpn               # ProtonVPN - privacy-focused VPN
+
+# ------------------------------------------------------------------------------
+# Development
+# ------------------------------------------------------------------------------
+# devpod                # DevPod - installed as CLI binary via 05-github.sh instead
+
+# ------------------------------------------------------------------------------
+# AI
+# ------------------------------------------------------------------------------
+# claude                # Claude Desktop - check https://claude.ai/download for current cask name

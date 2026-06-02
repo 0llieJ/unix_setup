@@ -142,6 +142,13 @@ install_system_packages() {
 
     mapfile -t common_pkgs < <(read_package_list "$PACKAGES_DIR/common.txt")
 
+    # macOS uses Homebrew for everything — formulae are installed in 04-userland.sh
+    # alongside casks. Nothing to do here for system packages on macOS.
+    if [[ "$DISTRO_FAMILY" == "macos" ]]; then
+        log_info "macOS: system packages handled by Homebrew in module 04 — skipping"
+        return
+    fi
+
     local distro_list
     case "$DISTRO_FAMILY" in
         arch)          distro_list="$PACKAGES_DIR/arch.txt"   ;;
@@ -196,7 +203,7 @@ install_system_packages() {
 # sensitive machines.
 # ------------------------------------------------------------------------------
 install_aur_packages() {
-    [[ "$DISTRO_FAMILY" != "arch" ]] && return
+    [[ "$DISTRO_FAMILY" != "arch" ]] && return  # AUR is Arch-only; macOS/Fedora/etc. skip
 
     log_section "AUR packages"
 
@@ -232,6 +239,9 @@ install_aur_packages() {
 # setup script should work on a headless server where no desktop is wanted.
 # ------------------------------------------------------------------------------
 install_sway_packages() {
+    # Sway is Linux-only — no Wayland compositor on macOS
+    [[ "$DISTRO_FAMILY" == "macos" ]] && return
+
     if cmd_exists sway || cmd_exists swayfx; then
         log_info "Sway/SwayFX already installed, skipping Sway ecosystem packages"
         return

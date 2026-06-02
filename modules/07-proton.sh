@@ -161,15 +161,26 @@ enable_service() {
 # main
 # ------------------------------------------------------------------------------
 main() {
-    log_section "Module 06: Proton Drive"
+    log_section "Module 07: Proton Drive"
 
     check_rclone          || return 0
     check_remote_configured || return 0
     create_mount_point
+
+    if [[ "$DISTRO_FAMILY" == "macos" ]]; then
+        # macOS doesn't use systemd. Proton Drive can still be mounted manually:
+        #   rclone mount proton: ~/ProtonDrive --vfs-cache-mode writes --daemon
+        # A launchd plist could automate this — add it here in future.
+        log_warn "macOS: systemd not available — Proton Drive auto-mount not configured"
+        log_warn "Mount manually with: rclone mount proton: ~/ProtonDrive --vfs-cache-mode writes --daemon"
+        log_warn "macFUSE must be installed first: brew install --cask macfuse"
+        return 0
+    fi
+
     write_systemd_service
     enable_service
 
-    log_success "Module 06 complete"
+    log_success "Module 07 complete"
 }
 
 main "$@"
