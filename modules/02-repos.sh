@@ -63,9 +63,12 @@ setup_repos_arch() {
 # Running this check at the start of module 02 catches it on re-runs.
 # ------------------------------------------------------------------------------
 repair_paru_if_broken() {
-    # Try running paru — capture stderr to check for library errors
+    # Try running paru — capture both stdout and stderr.
+    # || true prevents set -e from killing the script if paru fails to load.
+    # 2>&1 must come AFTER 1>/dev/null to correctly capture only stderr;
+    # the reversed order (2>&1 >/dev/null) discards stderr into the void.
     local paru_err
-    paru_err=$(paru --version 2>&1 >/dev/null)
+    paru_err=$(paru --version 2>&1) || true
 
     if echo "$paru_err" | grep -q "cannot open shared object file"; then
         log_warn "paru is broken: $paru_err"
