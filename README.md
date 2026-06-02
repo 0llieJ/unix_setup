@@ -1,4 +1,4 @@
-# setup
+# unix_setup
 
 Modular system setup script for fresh Linux installs. Supports Arch (and derivatives), Fedora, Ubuntu, and Debian. Installs packages, configures the system, sets up the SwayFX desktop, mounts Proton Drive, and applies dotfiles.
 
@@ -7,8 +7,8 @@ Modular system setup script for fresh Linux installs. Supports Arch (and derivat
 ## Quick start
 
 ```bash
-git clone <repo-url> ~/setup
-bash ~/setup/setup.sh
+git clone git@github.com:0llieJ/unix_setup.git ~/unix_setup
+bash ~/unix_setup/setup.sh
 ```
 
 Preview what it would do without changing anything:
