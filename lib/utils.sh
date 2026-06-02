@@ -132,7 +132,10 @@ pkg_install() {
     }
 
     case "$PKG_MANAGER" in
-        pacman) run_cmd sudo pacman -S --needed --noconfirm "${packages[@]}" ;;
+        # -u upgrades any out-of-date deps pulled in alongside new packages,
+        # preventing partial upgrades that break AUR tools like paru when
+        # libalpm gets bumped as a transitive dependency mid-setup.
+        pacman) run_cmd sudo pacman -Syu --needed --noconfirm "${packages[@]}" ;;
         dnf)    run_cmd sudo dnf install -y "${packages[@]}" ;;
         apt)    run_cmd sudo apt-get install -y "${packages[@]}" ;;
         brew)   run_cmd brew install "${packages[@]}" ;;
