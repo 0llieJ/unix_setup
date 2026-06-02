@@ -17,7 +17,9 @@ git                     # Distributed version control system
 # ------------------------------------------------------------------------------
 # TEXT EDITORS
 # ------------------------------------------------------------------------------
-vim                     # Classic text editor (fallback - neovim is in mise)
+neovim                  # Neovim — installed as a system package so it's available
+                        # before mise runs. mise.txt also tracks neovim@stable but
+                        # --needed means pacman/dnf/apt will skip it if already present.
 
 # ------------------------------------------------------------------------------
 # SHELLS
