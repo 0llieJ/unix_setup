@@ -22,6 +22,11 @@ devpod
 # Requires node@lts in mise.txt (already added)
 codex
 
+# Wave Terminal — block-based terminal with built-in AI, workspaces, and split panes
+# Installed via .deb/.rpm from GitHub releases on non-Arch distros
+# Arch installs via AUR (waveterm-bin in arch-aur.txt) and skips this
+waveterm
+
 # Nerd Fonts Symbols Only — icon glyphs used by terminal tools (starship, waybar, yazi, etc.)
 # Skipped on Arch — ttf-nerd-fonts-symbols is installed via pacman instead
 nerd-fonts

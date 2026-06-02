@@ -105,6 +105,69 @@ _install_devpod() {
 }
 
 # ------------------------------------------------------------------------------
+# _install_waveterm
+# Wave Terminal is a block-based terminal with built-in AI, workspaces, and
+# a split-pane layout. Each "block" can be a terminal, a web view, a file
+# preview, or an AI chat — all in one window.
+#
+# On Arch, waveterm-bin is installed via the AUR (arch-aur.txt) so this
+# function skips immediately. On other distros, the official .deb or .rpm
+# is downloaded from GitHub releases and installed with the native package
+# manager so it integrates properly with the system (desktop entry, icons, etc.)
+# rather than being an unmanaged binary.
+# ------------------------------------------------------------------------------
+_install_waveterm() {
+    # Arch uses waveterm-bin from the AUR — nothing to do here
+    if [[ "$DISTRO_FAMILY" == "arch" ]]; then
+        log_info "Arch detected — Wave Terminal installed via AUR (waveterm-bin), skipping"
+        return
+    fi
+
+    if cmd_exists waveterm; then
+        log_info "Wave Terminal already installed at $(command -v waveterm)"
+        return
+    fi
+
+    log_info "Installing Wave Terminal from GitHub releases..."
+
+    # Fetch the latest release version from the GitHub API
+    local version
+    version=$(curl -fsSL https://api.github.com/repos/wavetermdev/waveterm/releases/latest \
+        | grep '"tag_name"' \
+        | sed 's/.*"v\(.*\)".*/\1/')
+
+    if [[ -z "$version" ]]; then
+        log_error "Could not determine Wave Terminal version from GitHub API"
+        return 1
+    fi
+
+    log_info "Wave Terminal version: $version"
+
+    case "$PKG_MANAGER" in
+        dnf)
+            # Fedora — install the official .rpm
+            local url="https://github.com/wavetermdev/waveterm/releases/download/v${version}/waveterm-${version}.x86_64.rpm"
+            run_cmd curl -fsSL -o /tmp/waveterm.rpm "$url"
+            run_cmd sudo dnf install -y /tmp/waveterm.rpm
+            run_cmd rm -f /tmp/waveterm.rpm
+            ;;
+        apt)
+            # Ubuntu / Debian — install the official .deb
+            local url="https://github.com/wavetermdev/waveterm/releases/download/v${version}/waveterm_${version}_amd64.deb"
+            run_cmd curl -fsSL -o /tmp/waveterm.deb "$url"
+            run_cmd sudo apt-get install -y /tmp/waveterm.deb
+            run_cmd rm -f /tmp/waveterm.deb
+            ;;
+        *)
+            log_error "No Wave Terminal install method for package manager: $PKG_MANAGER"
+            return 1
+            ;;
+    esac
+
+    log_success "Wave Terminal ${version} installed"
+}
+
+# ------------------------------------------------------------------------------
 # _install_codex
 # Installs the OpenAI Codex CLI — OpenAI's AI coding agent that runs in the
 # terminal. It can read, write, and execute code autonomously within a sandboxed

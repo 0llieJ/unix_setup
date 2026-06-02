@@ -16,9 +16,12 @@ swayfx                  # SwayFX — Sway fork with rounded corners, blur, shado
                         # Actively maintained: https://github.com/WillPower3309/swayfx
 
 # ------------------------------------------------------------------------------
-# TERMINAL EMULATORS (fedora/ubuntu/debian=ghostty via COPR/repo)
+# TERMINAL EMULATORS (fedora/ubuntu/debian=ghostty via COPR/repo or GitHub)
 # ------------------------------------------------------------------------------
 ghostty                 # Modern GPU-accelerated terminal emulator
+waveterm-bin            # Wave Terminal — block-based terminal with built-in AI, workspaces,
+                        # and a split-pane layout. Pre-built binary from AUR.
+                        # Non-Arch installs handled by modules/05-github.sh
 
 # ------------------------------------------------------------------------------
 # WEB BROWSERS (fedora/ubuntu/debian=brave-browser via vendor repo)
