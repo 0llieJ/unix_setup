@@ -45,6 +45,16 @@
 [[ -n "${_MODULE_HARDWARE_LOADED:-}" ]] && return
 _MODULE_HARDWARE_LOADED=1
 
+# When run standalone (not via setup.sh), SETUP_DIR and the shared libs won't
+# be loaded yet. Detect the script's own location and source them directly.
+if [[ -z "${SETUP_DIR:-}" ]]; then
+    SETUP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    source "$SETUP_DIR/lib/log.sh"
+    source "$SETUP_DIR/lib/detect.sh"
+    source "$SETUP_DIR/lib/utils.sh"
+    detect_all
+fi
+
 # ==============================================================================
 # CPU MICROCODE
 # ==============================================================================

@@ -37,6 +37,14 @@
 [[ -n "${_MODULE_SWAY_CONFIG_LOADED:-}" ]] && return
 _MODULE_SWAY_CONFIG_LOADED=1
 
+if [[ -z "${SETUP_DIR:-}" ]]; then
+    SETUP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    source "$SETUP_DIR/lib/log.sh"
+    source "$SETUP_DIR/lib/detect.sh"
+    source "$SETUP_DIR/lib/utils.sh"
+    detect_all
+fi
+
 SWAY_CONFIG_DIR="${HOME}/.config/sway"
 SWAY_CONFIG="${SWAY_CONFIG_DIR}/config"
 
