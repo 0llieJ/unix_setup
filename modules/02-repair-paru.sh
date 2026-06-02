@@ -52,33 +52,54 @@ main() {
     fi
 
     log_warn "Broken paru detected: $paru_err"
-    log_info "Rebuilding paru-bin from AUR against current libalpm..."
 
     # Ensure build tools are available
     run_cmd sudo pacman -S --needed --noconfirm base-devel git
 
-    # Clone and build paru-bin in a temp directory
+    # Step 1 — try paru-bin (pre-compiled, fast)
+    # This works as long as the AUR maintainer has updated the binary to link
+    # against the current libalpm version. If not, fall back to source build.
+    log_info "Attempting paru-bin (pre-compiled binary)..."
     local tmpdir
     tmpdir=$(mktemp -d)
-
-    log_info "Cloning paru-bin from AUR..."
     git clone --depth=1 https://aur.archlinux.org/paru-bin.git "$tmpdir/paru-bin"
-
-    log_info "Building and installing paru-bin..."
     (cd "$tmpdir/paru-bin" && makepkg -si --noconfirm)
-
     rm -rf "$tmpdir"
 
-    # Verify the rebuild worked
+    # Check if paru-bin worked
     local new_version
     new_version=$(paru --version 2>&1) || true
+    if ! echo "$new_version" | grep -q "cannot open shared object file"; then
+        log_success "paru-bin rebuilt successfully: $new_version"
+        log_info "Continue setup with: bash ~/unix_setup/setup.sh --only 03"
+        return 0
+    fi
+
+    # Step 2 — paru-bin is still broken (AUR maintainer hasn't updated it yet
+    # to link against the new libalpm). Build paru from source instead — this
+    # compiles against whatever libalpm version is currently installed.
+    log_warn "paru-bin is still broken — AUR binary likely not updated yet for new libalpm"
+    log_info "Falling back to building paru from source (requires Rust — takes a few minutes)..."
+
+    run_cmd sudo pacman -S --needed --noconfirm rust
+
+    tmpdir=$(mktemp -d)
+    log_info "Cloning paru source from AUR..."
+    git clone --depth=1 https://aur.archlinux.org/paru.git "$tmpdir/paru"
+
+    log_info "Compiling paru from source (this takes a few minutes)..."
+    (cd "$tmpdir/paru" && makepkg -si --noconfirm)
+    rm -rf "$tmpdir"
+
+    # Final verification
+    new_version=$(paru --version 2>&1) || true
     if echo "$new_version" | grep -q "cannot open shared object file"; then
-        log_error "Rebuild failed — paru is still broken"
-        log_error "Try running: sudo pacman -Syu --noconfirm  then re-run this module"
+        log_error "Both paru-bin and source build failed — something else is wrong"
+        log_error "Check: pacman -Q libalpm  and  ldd \$(which paru)"
         return 1
     fi
 
-    log_success "paru rebuilt successfully: $new_version"
+    log_success "paru built from source successfully: $new_version"
     log_info "Continue setup with: bash ~/unix_setup/setup.sh --only 03"
 }
 
