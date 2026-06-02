@@ -52,6 +52,15 @@ Optional modules (not in the default run):
 | 10 | sway-config | Configures SDDM/greetd, writes minimal Sway config, applies Flameshot Wayland fix |
 | 11 | remove | Cleanly removes a tool and its config files (see below) |
 | 12 | hardware | CPU microcode (Intel/AMD) + GPU drivers (Nvidia/AMD/Intel) — auto-detects everything |
+| 13 | hibernate | Hibernation setup — encrypted swap keyfile, resume= kernel param, initramfs hooks |
+
+---
+
+## Install guide
+
+See [`guides/archinstall-bare-metal.md`](guides/archinstall-bare-metal.md) for a complete
+step-by-step archinstall walkthrough covering disk encryption, correct partition layout,
+Btrfs subvolumes, swap for hibernation, and systemd-boot.
 
 ---
 
