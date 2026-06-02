@@ -70,11 +70,54 @@ read_package_list() {
 }
 
 # ------------------------------------------------------------------------------
+# confirm_packages <label> <package> [package...]
+# Prints the list of packages about to be installed and asks once for
+# confirmation before proceeding. The user sees everything upfront and
+# approves the whole batch with one keypress — no per-package prompts.
+#
+# Returns 1 (skip install) if the user says no.
+# In DRY_RUN mode the prompt is skipped and the list is just printed.
+#
+# Example:
+#   confirm_packages "system packages" git curl rsync || return
+# ------------------------------------------------------------------------------
+confirm_packages() {
+    local label="$1"
+    shift
+    local packages=("$@")
+    [[ ${#packages[@]} -eq 0 ]] && return 0
+
+    echo ""
+    printf "${BOLD}  Packages to install (%s — %d total):${NC}\n" "$label" "${#packages[@]}"
+    echo ""
+
+    # Print in columns of 4 so long lists are readable
+    local i=0
+    for pkg in "${packages[@]}"; do
+        printf "    %-30s" "$pkg"
+        (( i++ ))
+        (( i % 4 == 0 )) && echo ""
+    done
+    # Final newline if the last row wasn't complete
+    (( i % 4 != 0 )) && echo ""
+    echo ""
+
+    if [[ "$DRY_RUN" == true ]]; then
+        log_info "[DRY-RUN] Would install ${#packages[@]} packages"
+        return 0
+    fi
+
+    ask "Install these ${#packages[@]} packages?" y
+}
+
+# ------------------------------------------------------------------------------
 # pkg_install <package> [package...]
 # Installs one or more system packages using whatever package manager was
 # detected by detect_pkg_manager() in lib/detect.sh.
-# Uses --needed / --no-reinstall flags where available so re-running the
-# script on an already-configured machine is safe and fast.
+#
+# Shows the package list and asks for confirmation once before installing.
+# Uses --needed / --no-reinstall flags so re-running on an existing machine
+# is safe — already-installed packages are skipped automatically.
 #
 # Example:
 #   pkg_install git curl rsync
@@ -83,10 +126,16 @@ pkg_install() {
     local packages=("$@")
     [[ ${#packages[@]} -eq 0 ]] && return
 
+    confirm_packages "$PKG_MANAGER" "${packages[@]}" || {
+        log_warn "Install skipped by user"
+        return 0
+    }
+
     case "$PKG_MANAGER" in
         pacman) run_cmd sudo pacman -S --needed --noconfirm "${packages[@]}" ;;
         dnf)    run_cmd sudo dnf install -y "${packages[@]}" ;;
         apt)    run_cmd sudo apt-get install -y "${packages[@]}" ;;
+        brew)   run_cmd brew install "${packages[@]}" ;;
         *)      log_error "Unknown package manager: $PKG_MANAGER"; return 1 ;;
     esac
 }

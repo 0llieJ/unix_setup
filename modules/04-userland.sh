@@ -108,7 +108,11 @@ install_flatpak() {
         return
     fi
 
-    log_info "Installing ${#flatpak_apps[@]} Flatpak apps..."
+    confirm_packages "Flatpak" "${flatpak_apps[@]}" || {
+        log_warn "Flatpak install skipped by user"
+        return 0
+    }
+
     run_cmd flatpak install -y --noninteractive flathub "${flatpak_apps[@]}"
 
     # Set up a daily auto-update timer so Flatpak apps stay current.
@@ -186,9 +190,12 @@ install_homebrew() {
         return
     fi
 
-    log_info "Installing ${#brew_formulae[@]} Homebrew formulae..."
-    run_cmd "$brew_bin" install "${brew_formulae[@]}"
+    confirm_packages "Homebrew formulae" "${brew_formulae[@]}" || {
+        log_warn "Homebrew formula install skipped by user"
+        return 0
+    }
 
+    run_cmd "$brew_bin" install "${brew_formulae[@]}"
     log_success "Homebrew formulae installed"
 }
 
@@ -223,11 +230,14 @@ install_macos_casks() {
         return
     fi
 
-    log_info "Installing ${#casks[@]} casks..."
+    confirm_packages "Homebrew casks" "${casks[@]}" || {
+        log_warn "Cask install skipped by user"
+        return 0
+    }
+
     # --no-quarantine bypasses macOS Gatekeeper quarantine flag which causes
     # an "unidentified developer" prompt on first launch for unsigned apps
     run_cmd "$brew_bin" install --cask --no-quarantine "${casks[@]}"
-
     log_success "macOS casks installed"
 }
 

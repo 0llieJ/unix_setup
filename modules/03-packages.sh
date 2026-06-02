@@ -219,9 +219,12 @@ install_aur_packages() {
         return
     fi
 
-    log_info "Installing ${#aur_pkgs[@]} AUR packages via paru..."
-    run_cmd paru -S --needed --noconfirm --skipreview "${aur_pkgs[@]}"
+    confirm_packages "AUR" "${aur_pkgs[@]}" || {
+        log_warn "AUR install skipped by user"
+        return 0
+    }
 
+    run_cmd paru -S --needed --noconfirm --skipreview "${aur_pkgs[@]}"
     log_success "AUR packages installed"
 }
 
