@@ -32,6 +32,13 @@ _MODULE_REPOS_LOADED=1
 setup_repos_arch() {
     log_info "Arch: checking AUR helper..."
 
+    # Do a full system upgrade before installing paru. This ensures pacman and
+    # libalpm are at their latest version before paru-bin is built against them.
+    # Without this, a pacman upgrade later in module 03 bumps libalpm and breaks
+    # the paru binary with "cannot open shared object file: libalpm.so.XX".
+    log_info "Running full system upgrade before building paru..."
+    run_cmd sudo pacman -Syu --noconfirm
+
     if cmd_exists paru; then
         log_info "paru already installed, skipping"
         return
