@@ -224,7 +224,21 @@ install_aur_packages() {
         return 0
     }
 
-    run_cmd paru -S --needed --noconfirm --skipreview "${aur_pkgs[@]}"
+    if ! run_cmd paru -S --needed --noconfirm --skipreview "${aur_pkgs[@]}"; then
+        # Check if the failure was a shared library error (broken paru after pacman upgrade)
+        local paru_err
+        paru_err=$(paru --version 2>&1) || true
+        if echo "$paru_err" | grep -q "cannot open shared object file"; then
+            log_error "paru is broken — libalpm was upgraded and paru needs rebuilding."
+            log_error "Fix it by running:"
+            log_error "  bash ~/unix_setup/modules/02-repair-paru.sh"
+            log_error "Then re-run:  bash ~/unix_setup/setup.sh --only 03"
+        else
+            log_error "paru install failed. Check the output above for details."
+        fi
+        return 1
+    fi
+
     log_success "AUR packages installed"
 }
 
