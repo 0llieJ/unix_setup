@@ -55,7 +55,7 @@ libscfg                 # Config file parser required by netavark
 # ------------------------------------------------------------------------------
 qemu-full               # QEMU full system emulation
 libvirt                 # Virtualization API (ubuntu/debian=libvirt-daemon-system)
-bridge-utils            # Network bridging for VMs
+# bridge-utils          # Dropped from Arch repos — bridge functionality is now in iproute2 (ip link)
 
 # ------------------------------------------------------------------------------
 # TERMINAL EMULATORS (ghostty is AUR - see arch-aur.txt)
