@@ -131,6 +131,195 @@ Or select a snapshot from the boot menu at startup.
 
 ---
 
+## Bootloader recovery
+
+Snapshots protect your system state. They do **not** protect against the bootloader itself getting corrupted. If GRUB, systemd-boot, or Limine breaks, you won't reach the boot menu at all — the fix is a live USB.
+
+Keep a live USB of your distro on your desk. Every recovery below takes under 10 minutes.
+
+---
+
+### Step 1 — boot and mount (all bootloaders)
+
+Boot your distro's live USB, open a terminal, then mount your partitions:
+
+```bash
+# Find your partitions
+lsblk
+
+# Mount the Btrfs root subvolume
+mount -o subvol=@ /dev/nvme0n1p3 /mnt
+
+# Mount the separate /boot and EFI partitions
+mount /dev/nvme0n1p2 /mnt/boot
+mount /dev/nvme0n1p1 /mnt/boot/efi
+
+# Chroot into your system
+arch-chroot /mnt        # Arch / CachyOS / EndeavourOS
+# or
+chroot /mnt             # Fedora / Ubuntu / Debian
+```
+
+> Replace `/dev/nvme0n1p1/2/3` with your actual partition names from `lsblk`.
+> If you followed the recommended layout, p1 = EFI, p2 = /boot, p3 = Btrfs root.
+
+---
+
+### GRUB recovery
+
+**Reinstall GRUB and regenerate config:**
+
+```bash
+# Arch / CachyOS / EndeavourOS
+grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GRUB
+grub-mkconfig -o /boot/grub/grub.cfg
+
+# Fedora
+grub2-install --target=x86_64-efi --efi-directory=/boot/efi
+grub2-mkconfig -o /boot/grub2/grub.cfg
+
+# Ubuntu / Debian
+grub-install --target=x86_64-efi --efi-directory=/boot/efi
+update-grub
+```
+
+**If only the config is broken** (GRUB loads but fails to find entries):
+
+```bash
+# Arch
+grub-mkconfig -o /boot/grub/grub.cfg
+
+# Fedora
+grub2-mkconfig -o /boot/grub2/grub.cfg
+
+# Ubuntu / Debian
+update-grub
+```
+
+**If GRUB loads but drops to a rescue shell**, you can boot manually from there:
+
+```
+# In the GRUB rescue shell — find your root partition
+ls
+ls (hd0,gpt3)/          # look for @ subvolume
+set root=(hd0,gpt3)
+set prefix=(hd0,gpt3)/@/boot/grub
+insmod normal
+normal
+```
+
+---
+
+### systemd-boot recovery
+
+systemd-boot is simpler than GRUB — the EFI binary is small and reinstalling it is one command:
+
+```bash
+# Reinstall the systemd-boot EFI binary
+bootctl install
+
+# Verify it's working
+bootctl status
+```
+
+**If boot entries are missing** (systemd-boot loads but shows no OS):
+
+```bash
+# List what entries exist
+ls /boot/loader/entries/
+
+# Regenerate entries if using systemd-boot-btrfs
+systemd-boot-btrfs
+
+# Or manually create a minimal entry
+cat > /boot/loader/entries/arch.conf << 'EOF'
+title   Arch Linux
+linux   /vmlinuz-linux
+initrd  /initramfs-linux.img
+options root=LABEL=ROOT rootflags=subvol=@ rw
+EOF
+```
+
+**If the EFI entry is missing from firmware** (machine doesn't try to boot systemd-boot at all):
+
+```bash
+# Re-register the EFI entry
+bootctl install
+
+# Or add it manually with efibootmgr
+efibootmgr --create --disk /dev/nvme0n1 --part 1 \
+    --label "systemd-boot" \
+    --loader /EFI/systemd/systemd-bootx64.efi
+```
+
+---
+
+### Limine recovery
+
+```bash
+# Reinstall Limine to the EFI partition
+limine bios-install /dev/nvme0n1        # BIOS/legacy boot
+# or
+limine uefi-install /boot/efi           # UEFI (most modern machines)
+
+# Regenerate Limine config if using limine-snapper-sync
+limine-snapper-sync
+
+# Or verify the config manually
+cat /boot/limine.conf
+```
+
+**If Limine config is missing or corrupt**, the minimal config to get booting again:
+
+```
+TIMEOUT=5
+DEFAULT_ENTRY=1
+
+:Arch Linux
+    PROTOCOL=linux
+    KERNEL_PATH=boot:///vmlinuz-linux
+    MODULE_PATH=boot:///initramfs-linux.img
+    CMDLINE=root=LABEL=ROOT rootflags=subvol=@ rw
+```
+
+---
+
+### Booting directly into a snapshot (any bootloader)
+
+If the bootloader works but you need to boot a specific Snapper snapshot without the boot menu integration:
+
+```bash
+# From live USB — list snapshots
+ls /mnt/.snapshots/
+
+# Mount a specific snapshot (e.g. number 42)
+mount -o subvol=@/.snapshots/42/snapshot /dev/nvme0n1p3 /mnt
+
+# Chroot in and fix whatever broke
+arch-chroot /mnt
+```
+
+---
+
+### After any recovery — check snapshot boot entries
+
+Once you're back in your system, resync the boot menu entries so snapshots appear again:
+
+```bash
+# GRUB
+sudo grub-mkconfig -o /boot/grub/grub.cfg        # Arch
+sudo grub2-mkconfig -o /boot/grub2/grub.cfg      # Fedora
+sudo update-grub                                   # Ubuntu/Debian
+
+# systemd-boot
+sudo systemd-boot-btrfs
+
+# Limine
+sudo limine-snapper-sync
+```
+
+---
+
 ## Desktop (SwayFX)
 
 SwayFX is a drop-in fork of Sway that adds rounded corners, blur, and shadows. It uses the same config file as Sway.
