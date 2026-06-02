@@ -344,12 +344,31 @@ main() {
     log_info "Bootloader : $BOOTLOADER"
     echo ""
 
+    # Microcode runs automatically — it's always safe and always needed.
     install_microcode
-    install_gpu_drivers
+
+    # GPU drivers are optional — prompted because the correct choice varies
+    # by hardware, and getting it wrong (e.g. nvidia-open on a pre-Turing card)
+    # can leave you without a working display after reboot.
+    echo ""
+    if [[ "$GPU_VENDOR" == "unknown" ]]; then
+        log_warn "No GPU detected — skipping GPU driver install"
+        log_warn "Run 'lspci | grep -iE \"display|vga|3d\"' to check your GPU"
+    else
+        log_info "Detected GPU vendor: $GPU_VENDOR"
+        echo ""
+
+        if ask "Install GPU drivers for $GPU_VENDOR GPU?" y; then
+            install_gpu_drivers
+        else
+            log_info "GPU driver install skipped"
+            log_info "Re-run at any time: bash ~/unix_setup/modules/12-hardware.sh"
+        fi
+    fi
 
     echo ""
     log_success "Module 12 complete"
-    log_warn "Reboot to activate driver and microcode changes: sudo reboot"
+    log_warn "Reboot to activate changes: sudo reboot"
 }
 
 main "$@"
