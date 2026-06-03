@@ -100,14 +100,40 @@ _build_paru() {
     # Install build prerequisites — base-devel contains make, gcc, fakeroot etc.
     sudo pacman -S --needed --noconfirm base-devel git
 
+    # Remove any existing paru packages before building — orphaned packages
+    # (e.g. paru-bin-debug left from a failed install) will conflict otherwise.
+    local existing
+    existing=$(pacman -Qq 2>/dev/null | grep '^paru' || true)
+    if [[ -n "$existing" ]]; then
+        log_info "Removing existing paru packages before build: $existing"
+        # shellcheck disable=SC2086
+        sudo pacman -Rns --noconfirm $existing
+    fi
+
     local tmpdir
     tmpdir=$(mktemp -d)
 
-    # Clone paru-bin (pre-compiled binary — faster than building paru from source)
+    # Try paru-bin first (pre-compiled binary — faster than building from source).
+    # If it fails due to a libalpm version mismatch, fall back to source build.
+    log_info "Trying paru-bin (pre-compiled)..."
     git clone --depth=1 https://aur.archlinux.org/paru-bin.git "$tmpdir/paru-bin"
+    if (cd "$tmpdir/paru-bin" && makepkg -si --noconfirm); then
+        if paru --version &>/dev/null; then
+            rm -rf "$tmpdir"
+            log_success "paru installed"
+            return
+        fi
+        log_warn "paru-bin installed but binary is broken (libalpm mismatch) — falling back to source build..."
+        existing=$(pacman -Qq 2>/dev/null | grep '^paru' || true)
+        [[ -n "$existing" ]] && sudo pacman -Rns --noconfirm $existing
+    else
+        log_warn "paru-bin build failed — falling back to source build..."
+    fi
 
-    # makepkg builds the package and -si installs it + its dependencies
-    (cd "$tmpdir/paru-bin" && makepkg -si --noconfirm)
+    log_info "Building paru from source..."
+    sudo pacman -S --needed --noconfirm rust
+    git clone --depth=1 https://aur.archlinux.org/paru.git "$tmpdir/paru"
+    (cd "$tmpdir/paru" && makepkg -si --noconfirm)
 
     rm -rf "$tmpdir"
     log_success "paru installed"
