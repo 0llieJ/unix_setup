@@ -24,20 +24,44 @@ waveterm-bin            # Wave Terminal — block-based terminal with built-in A
                         # Non-Arch installs handled by modules/05-github.sh
 
 # ------------------------------------------------------------------------------
-# WEB BROWSERS (fedora/ubuntu/debian=brave-browser via vendor repo)
+# WEB BROWSERS
 # ------------------------------------------------------------------------------
-hellium                 # Hellium browser
+helium-browser-bin      # Helium browser
 
 # ------------------------------------------------------------------------------
 # TERMINAL ENTERTAINMENT
 # ------------------------------------------------------------------------------
 cbonsai                 # Grow ASCII bonsai trees in terminal
 pipes.sh                # Animated pipes terminal screensaver
+shell-color-scripts     # Collection of colorful terminal scripts
+asciiquarium            # ASCII art aquarium in the terminal
 
 # ------------------------------------------------------------------------------
 # VPN AND NETWORKING
 # ------------------------------------------------------------------------------
 netbird                 # WireGuard-based mesh VPN
+
+# ------------------------------------------------------------------------------
+# HARDWARE — LOGITECH
+# ------------------------------------------------------------------------------
+solaar-git              # Logitech device manager (mice, keyboards, headsets)
+logiops-git             # Logitech configuration daemon (custom actions, DPI, etc.)
+
+# ------------------------------------------------------------------------------
+# SSH
+# ------------------------------------------------------------------------------
+sshs                    # SSH session manager TUI
+
+# ------------------------------------------------------------------------------
+# AI AGENTS
+# ------------------------------------------------------------------------------
+codename-goose          # AI coding agent CLI (Block)
+
+# ------------------------------------------------------------------------------
+# SNAPSHOTS
+# ------------------------------------------------------------------------------
+timeshift-autosnap      # Auto-create Timeshift snapshots before pacman transactions
+snapper-rollback        # Roll back to a snapper snapshot from the boot menu
 
 # ------------------------------------------------------------------------------
 # AI DESKTOP APPLICATIONS
