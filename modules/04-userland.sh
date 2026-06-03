@@ -164,6 +164,13 @@ EOF
 install_homebrew() {
     log_section "Homebrew (formulae)"
 
+    # Arch has everything in pacman/AUR — Homebrew on Linux is unsupported
+    # and requires sudo to create /home/linuxbrew. Skip it entirely.
+    if [[ "$DISTRO_FAMILY" == "arch" ]]; then
+        log_info "Arch detected — all Homebrew packages are available via pacman/AUR, skipping"
+        return
+    fi
+
     # Install Homebrew itself if missing
     if ! cmd_exists brew; then
         log_info "Installing Homebrew (Linuxbrew)..."

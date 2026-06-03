@@ -74,6 +74,16 @@ libvirt                 # Virtualization API (ubuntu/debian=libvirt-daemon-syste
 wezterm                 # GPU-accelerated terminal with Lua config
 
 # ------------------------------------------------------------------------------
+# SHELL
+# ------------------------------------------------------------------------------
+nushell                 # Modern shell with structured data pipelines
+
+# ------------------------------------------------------------------------------
+# NETWORK
+# ------------------------------------------------------------------------------
+proxychains-ng          # Route connections through proxy chains
+
+# ------------------------------------------------------------------------------
 # TERMINAL ENTERTAINMENT
 # ------------------------------------------------------------------------------
 cowsay                  # ASCII art speech bubbles in the terminal
