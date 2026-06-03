@@ -258,11 +258,61 @@ setup_podman() {
 }
 
 # ------------------------------------------------------------------------------
+# setup_pacman
+# Ensures the [extra] repository is enabled in /etc/pacman.conf and enables
+# useful pacman quality-of-life settings:
+#   Color               — coloured output in the terminal
+#   ParallelDownloads   — download up to 5 packages simultaneously
+#
+# [extra] is enabled by default on most Arch installs, but some minimal
+# installs (archinstall with a bare profile) omit it. This is idempotent —
+# if the repo is already present the sed commands are no-ops.
+# ------------------------------------------------------------------------------
+setup_pacman() {
+    if [[ "$DISTRO_FAMILY" != "arch" ]]; then
+        return
+    fi
+
+    log_section "pacman configuration"
+
+    # Enable [extra] repo if it's commented out
+    if grep -q '^\s*#\s*\[extra\]' /etc/pacman.conf; then
+        log_info "Enabling [extra] repository..."
+        if [[ "$DRY_RUN" != true ]]; then
+            sudo sed -i '/^\s*#\s*\[extra\]/{
+                s/^#\s*//
+                n
+                s/^#\s*//
+            }' /etc/pacman.conf
+        else
+            log_info "[DRY-RUN] Would uncomment [extra] in /etc/pacman.conf"
+        fi
+    else
+        log_info "[extra] repository already enabled"
+    fi
+
+    # Enable Color if not already set
+    if ! grep -q '^Color' /etc/pacman.conf; then
+        log_info "Enabling Color in pacman.conf..."
+        run_cmd sudo sed -i 's/^#Color/Color/' /etc/pacman.conf
+    fi
+
+    # Enable ParallelDownloads if not already set
+    if ! grep -q '^ParallelDownloads' /etc/pacman.conf; then
+        log_info "Enabling ParallelDownloads = 5 in pacman.conf..."
+        run_cmd sudo sed -i 's/^#ParallelDownloads.*/ParallelDownloads = 5/' /etc/pacman.conf
+    fi
+
+    log_success "pacman configured"
+}
+
+# ------------------------------------------------------------------------------
 # main — called by setup.sh to run this module
 # ------------------------------------------------------------------------------
 main() {
     log_section "Module 01: System"
 
+    setup_pacman
     setup_firewall
     setup_user_groups
     setup_sudo_feedback
