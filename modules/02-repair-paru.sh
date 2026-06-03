@@ -120,11 +120,13 @@ main() {
 
     run_cmd sudo pacman -S --needed --noconfirm rust
 
-    # Ensure paru-bin is gone before installing paru (they conflict)
-    if pacman -Q paru-bin &>/dev/null; then
-        log_info "Removing paru-bin before source build (packages conflict)..."
-        run_cmd sudo pacman -Rns --noconfirm paru-bin
-    fi
+    # Ensure all paru-bin variants are gone before installing paru (they conflict)
+    for pkg in paru-bin paru-bin-debug; do
+        if pacman -Q "$pkg" &>/dev/null; then
+            log_info "Removing $pkg before source build (packages conflict)..."
+            run_cmd sudo pacman -Rns --noconfirm "$pkg"
+        fi
+    done
 
     tmpdir=$(mktemp -d)
     log_info "Cloning paru source from AUR..."
