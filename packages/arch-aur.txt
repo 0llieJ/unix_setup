@@ -33,7 +33,7 @@ helium-browser-bin      # Helium browser
 # ------------------------------------------------------------------------------
 cbonsai                 # Grow ASCII bonsai trees in terminal
 pipes.sh                # Animated pipes terminal screensaver
-shell-color-scripts     # Collection of colorful terminal scripts
+shell-color-scripts-git # Collection of colorful terminal scripts
 asciiquarium            # ASCII art aquarium in the terminal
 
 # ------------------------------------------------------------------------------
