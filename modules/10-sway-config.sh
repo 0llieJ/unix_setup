@@ -376,18 +376,98 @@ EOF
 }
 
 # ------------------------------------------------------------------------------
+# setup_system_services
+# Enables system-level services that need to be running for a full desktop.
+# These are all idempotent — enabling an already-enabled service is a no-op.
+#
+# Services enabled:
+#   bluetooth  — Bluetooth daemon (required for blueman and BT devices)
+#   pcscd      — PC/SC smart card daemon (required for YubiKey)
+#   libvirtd   — Virtualisation daemon (required for virt-manager / QEMU)
+#   logid      — Logitech device configuration daemon (from logiops-git)
+#   polkit     — Policy kit (privilege escalation for GUI apps)
+#
+# Pipewire is enabled as user services — must run as the current user,
+# not as root, so we use `systemctl --user`.
+# ------------------------------------------------------------------------------
+setup_system_services() {
+    log_section "System services"
+
+    systemd_enable bluetooth
+    systemd_enable pcscd
+    systemd_enable libvirtd
+    systemd_enable polkit
+
+    # logid is only relevant if logiops is installed
+    if cmd_exists logid; then
+        systemd_enable logid
+    else
+        log_info "logid not found — skipping (install logiops-git to configure Logitech devices)"
+    fi
+
+    log_info "Enabling Pipewire user services..."
+    if [[ "$DRY_RUN" != true ]]; then
+        systemctl --user enable --now pipewire.service
+        systemctl --user enable --now pipewire-pulse.service
+        systemctl --user enable --now wireplumber.service
+    else
+        log_info "[DRY-RUN] Would enable pipewire, pipewire-pulse, wireplumber user services"
+    fi
+
+    log_success "System services enabled"
+}
+
+# ------------------------------------------------------------------------------
+# setup_user_groups
+# Adds the current user to the groups required for a full desktop environment.
+#
+# Groups:
+#   wheel         — sudo access
+#   networkmanager — manage network connections without root
+#   video          — access to GPU / backlight control
+#   audio          — direct audio device access (fallback alongside Pipewire)
+#   input          — raw input device access (required by some Wayland compositors)
+#   libvirtd       — manage VMs via libvirt without root
+# ------------------------------------------------------------------------------
+setup_user_groups() {
+    log_section "User groups"
+
+    local groups=("wheel" "networkmanager" "video" "audio" "input" "libvirtd")
+    local user
+    user="$(whoami)"
+
+    for group in "${groups[@]}"; do
+        if getent group "$group" &>/dev/null; then
+            if id -nG "$user" | grep -qw "$group"; then
+                log_info "$user already in $group — skipping"
+            else
+                log_info "Adding $user to $group..."
+                run_cmd sudo usermod -aG "$group" "$user"
+            fi
+        else
+            log_info "Group $group does not exist — skipping"
+        fi
+    done
+
+    log_success "User groups configured (re-login for group changes to take effect)"
+}
+
+# ------------------------------------------------------------------------------
 # main
 # ------------------------------------------------------------------------------
 main() {
-    log_section "Module 09: Sway config (optional)"
+    log_section "Module 10: Sway config (optional)"
 
+    setup_system_services
+    setup_user_groups
     setup_login_manager
     create_minimal_sway_config
     apply_flameshot_fix
 
     echo ""
-    log_success "Module 09 complete"
+    log_success "Module 10 complete"
     log_info "Next steps:"
+    log_info "  • Re-login or reboot for group changes to take effect"
     log_info "  • Reboot to start greetd and log into SwayFX"
     log_info "  • Once you have SSH set up, run module 07 to apply your real dotfiles"
     log_info "    chezmoi apply will replace the minimal Sway config with your full one"
