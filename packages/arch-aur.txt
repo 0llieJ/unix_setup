@@ -26,7 +26,7 @@ waveterm-bin            # Wave Terminal — block-based terminal with built-in A
 # ------------------------------------------------------------------------------
 # WEB BROWSERS (fedora/ubuntu/debian=brave-browser via vendor repo)
 # ------------------------------------------------------------------------------
-brave-bin               # Brave - privacy-focused Chromium browser
+hellium                 # Hellium browser
 
 # ------------------------------------------------------------------------------
 # TERMINAL ENTERTAINMENT
