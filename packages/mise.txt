@@ -9,7 +9,7 @@
 # Language runtimes
 # ------------------------------------------------------------------------------
 python@3.12
-node@lts           # Required for npm-based tools: OpenAI Codex CLI, devcontainer CLI
+node@lts           # JavaScript runtime — installed for syntax highlighting support only
 go@latest
 lua@5.4
 rust@stable
@@ -85,7 +85,6 @@ just@latest         # Command runner (Makefile alternative)
 hyperfine@latest    # Benchmarking tool
 glow@latest         # Markdown renderer for the terminal
 tlrc@latest         # tldr pages client
-cowsay@latest
 opencode@latest     # AI coding assistant CLI
 
 # ------------------------------------------------------------------------------

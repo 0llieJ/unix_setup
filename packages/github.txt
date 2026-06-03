@@ -18,10 +18,6 @@ claude-code
 # Installed as a static binary from GitHub releases (no package manager needed)
 devpod
 
-# OpenAI Codex CLI — AI coding agent from OpenAI, installed via npm
-# Requires node@lts in mise.txt (already added)
-codex
-
 # Wave Terminal — block-based terminal with built-in AI, workspaces, and split panes
 # Installed via .deb/.rpm from GitHub releases on non-Arch distros
 # Arch installs via AUR (waveterm-bin in arch-aur.txt) and skips this
