@@ -376,6 +376,48 @@ EOF
 }
 
 # ------------------------------------------------------------------------------
+# apply_noctalia_autostart
+# Appends the noctalia-shell autostart exec line to ~/.config/sway/config.
+#
+# noctalia-shell is launched via Quickshell (qs). It must be started as an
+# exec in the Sway config rather than as a systemd user service because it
+# needs the Wayland compositor to be running first.
+#
+# The line is identified by a marker comment so this function is idempotent.
+# ------------------------------------------------------------------------------
+apply_noctalia_autostart() {
+    log_section "noctalia-shell autostart"
+
+    if [[ ! -f "$SWAY_CONFIG" ]]; then
+        log_warn "No Sway config found at $SWAY_CONFIG — run create_minimal_sway_config first"
+        return 1
+    fi
+
+    if grep -q "noctalia-shell" "$SWAY_CONFIG"; then
+        log_info "noctalia-shell autostart already present in $SWAY_CONFIG — skipping"
+        return
+    fi
+
+    if ! cmd_exists qs; then
+        log_warn "qs (Quickshell) not found — noctalia-shell autostart skipped"
+        log_warn "Install noctalia-qs via paru then re-run this module"
+        return
+    fi
+
+    log_info "Appending noctalia-shell autostart to $SWAY_CONFIG..."
+    if [[ "$DRY_RUN" != true ]]; then
+        cat >> "$SWAY_CONFIG" << 'EOF'
+
+# ── noctalia-shell ────────────────────────────────────────────────────────────
+exec qs -c noctalia-shell
+EOF
+        log_success "noctalia-shell autostart added to $SWAY_CONFIG"
+    else
+        log_info "[DRY-RUN] Would append noctalia-shell autostart to $SWAY_CONFIG"
+    fi
+}
+
+# ------------------------------------------------------------------------------
 # setup_system_services
 # Enables system-level services that need to be running for a full desktop.
 # These are all idempotent — enabling an already-enabled service is a no-op.
@@ -463,6 +505,7 @@ main() {
     setup_login_manager
     create_minimal_sway_config
     apply_flameshot_fix
+    apply_noctalia_autostart
 
     echo ""
     log_success "Module 10 complete"

@@ -24,6 +24,10 @@ _MODULE_DOTFILES_LOADED=1
 # Your dotfiles repository — change this to your own fork/repo
 DOTFILES_REPO="git@github.com:0llieJ/dotfiles.git"
 
+# Blog repository
+BLOG_REPO="git@github.com:0llieJ/blog.git"
+BLOG_DIR="${HOME}/projects/blog"
+
 # Where chezmoi stores its source directory
 CHEZMOI_SOURCE="${HOME}/.local/share/chezmoi"
 
@@ -120,15 +124,42 @@ setup_chezmoi() {
 }
 
 # ------------------------------------------------------------------------------
+# setup_blog
+# Clones the Hugo blog repo into ~/projects/blog and verifies Hugo is available.
+# Safe to re-run — pulls latest changes if the repo already exists.
+# ------------------------------------------------------------------------------
+setup_blog() {
+    log_section "Blog"
+
+    if ! cmd_exists hugo; then
+        log_warn "Hugo not found — skipping blog setup (install via mise: hugo@latest)"
+        return
+    fi
+
+    mkdir -p "${HOME}/projects"
+
+    if [[ -d "$BLOG_DIR/.git" ]]; then
+        log_info "Blog repo already cloned — pulling latest changes..."
+        run_cmd git -C "$BLOG_DIR" pull
+    else
+        log_info "Cloning blog repo from $BLOG_REPO..."
+        run_cmd git clone "$BLOG_REPO" "$BLOG_DIR"
+    fi
+
+    log_success "Blog ready at $BLOG_DIR"
+}
+
+# ------------------------------------------------------------------------------
 # main
 # ------------------------------------------------------------------------------
 main() {
-    log_section "Module 07: Dotfiles"
+    log_section "Module 08: Dotfiles"
 
     setup_ssh_key || return 0
     setup_chezmoi
+    setup_blog
 
-    log_success "Module 07 complete"
+    log_success "Module 08 complete"
 }
 
 main "$@"
