@@ -73,10 +73,21 @@ main() {
         if cmd_exists paru; then
             log_success "paru is working correctly — no repair needed"
             paru --version
-        else
-            log_info "paru is not installed — run setup.sh to install it"
+            return 0
         fi
-        return 0
+
+        # paru binary is missing — check for orphaned paru packages left behind
+        # by a failed install (e.g. paru-bin-debug still registered with pacman
+        # but no working binary). If found, clean up and reinstall.
+        local orphaned
+        orphaned=$(pacman -Qq 2>/dev/null | grep '^paru' || true)
+        if [[ -z "$orphaned" ]]; then
+            log_info "paru is not installed — run setup.sh to install it"
+            return 0
+        fi
+
+        log_warn "paru binary missing but orphaned packages found: $orphaned"
+        log_warn "Cleaning up and reinstalling..."
     fi
 
     log_warn "Broken paru detected: $paru_err"
