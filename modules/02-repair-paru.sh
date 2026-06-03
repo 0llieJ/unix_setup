@@ -44,6 +44,18 @@ if [[ -z "${SETUP_DIR:-}" ]]; then
     detect_all
 fi
 
+_remove_all_paru_pkgs() {
+    local pkgs
+    pkgs=$(pacman -Qq 2>/dev/null | grep '^paru' || true)
+    if [[ -z "$pkgs" ]]; then
+        log_info "No paru packages found — nothing to remove"
+        return 0
+    fi
+    log_info "Removing: $pkgs"
+    # shellcheck disable=SC2086
+    run_cmd sudo pacman -Rns --noconfirm $pkgs
+}
+
 main() {
     log_section "Repair paru (libalpm mismatch)"
 
@@ -76,14 +88,8 @@ main() {
     # ── Step 1: remove and reinstall paru-bin ─────────────────────────────────
     log_section "Step 1 — Reinstalling paru-bin"
 
-    log_info "Removing all paru variants (forces clean download, not cached binary)..."
-    # Remove each variant individually — pacman errors if a package isn't installed,
-    # so we suppress per-package errors rather than silencing the whole command.
-    for pkg in paru paru-bin paru-bin-debug paru-debug; do
-        if pacman -Q "$pkg" &>/dev/null; then
-            run_cmd sudo pacman -Rns --noconfirm "$pkg"
-        fi
-    done
+    log_info "Removing all paru-related packages (forces clean download, not cached binary)..."
+    _remove_all_paru_pkgs
 
     log_info "Upgrading system so libalpm is at latest before reinstalling..."
     run_cmd sudo pacman -Syu --noconfirm
@@ -120,13 +126,8 @@ main() {
 
     run_cmd sudo pacman -S --needed --noconfirm rust
 
-    # Ensure all paru-bin variants are gone before installing paru (they conflict)
-    for pkg in paru-bin paru-bin-debug; do
-        if pacman -Q "$pkg" &>/dev/null; then
-            log_info "Removing $pkg before source build (packages conflict)..."
-            run_cmd sudo pacman -Rns --noconfirm "$pkg"
-        fi
-    done
+    log_info "Removing all paru-related packages before source build (prevent conflicts)..."
+    _remove_all_paru_pkgs
 
     tmpdir=$(mktemp -d)
     log_info "Cloning paru source from AUR..."
