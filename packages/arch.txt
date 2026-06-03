@@ -73,11 +73,16 @@ libvirt                 # Virtualization API (ubuntu/debian=libvirt-daemon-syste
 # ------------------------------------------------------------------------------
 wezterm                 # GPU-accelerated terminal with Lua config
 
+# ------------------------------------------------------------------------------
+# TERMINAL ENTERTAINMENT
+# ------------------------------------------------------------------------------
+cowsay                  # ASCII art speech bubbles in the terminal
+
 # ==============================================================================
 # MANAGED ELSEWHERE (see install priority: mise -> Flatpak -> Homebrew -> AUR)
 # ==============================================================================
 # mise: languages, CLI tools, btop, fastfetch, tldr, lazyssh, lima, opencode,
-#       cowsay, neovim, chezmoi, delta, uv
+#       neovim, chezmoi, delta, uv
 # Homebrew: nushell, sshs, goose, tree, p7zip, figlet, lolcat, asciiquarium,
 #           proxychains-ng, ykman (yubikey-manager)
 # Flatpak: Zed, Zen Browser, Bitwarden, DevPod, qFlipper, Cryptomator,

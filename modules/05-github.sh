@@ -168,38 +168,6 @@ _install_waveterm() {
 }
 
 # ------------------------------------------------------------------------------
-# _install_codex
-# Installs the OpenAI Codex CLI — OpenAI's AI coding agent that runs in the
-# terminal. It can read, write, and execute code autonomously within a sandboxed
-# environment.
-#
-# Installed via npm as it's a Node.js package. Requires node@lts to be present
-# in mise.txt so npm is available before this function runs (module 04 handles
-# that). The npm global prefix is set to ~/.local so no sudo is needed.
-# ------------------------------------------------------------------------------
-_install_codex() {
-    if cmd_exists codex; then
-        log_info "OpenAI Codex already installed at $(command -v codex)"
-        return
-    fi
-
-    # npm comes from the Node runtime installed by mise
-    local npm_bin
-    npm_bin="$(command -v npm 2>/dev/null \
-        || echo "${HOME}/.local/share/mise/shims/npm")"
-
-    if [[ ! -x "$npm_bin" ]]; then
-        log_error "npm not found — ensure node@lts is in packages/mise.txt and module 04 has run"
-        return 1
-    fi
-
-    log_info "Installing OpenAI Codex CLI via npm..."
-    # --prefix ~/.local installs to ~/.local/bin without needing root
-    run_cmd "$npm_bin" install -g --prefix "${HOME}/.local" @openai/codex
-    log_success "OpenAI Codex CLI installed"
-}
-
-# ------------------------------------------------------------------------------
 # _install_nerd-fonts
 # Installs the Nerd Fonts Symbols Only pack — a font containing only the icon
 # glyphs (no text), used by terminal tools like starship, waybar, yazi, and
