@@ -76,8 +76,14 @@ main() {
     # ── Step 1: remove and reinstall paru-bin ─────────────────────────────────
     log_section "Step 1 — Reinstalling paru-bin"
 
-    log_info "Removing broken paru (forces clean download, not cached binary)..."
-    run_cmd sudo pacman -Rns --noconfirm paru paru-bin paru-bin-debug 2>/dev/null || true
+    log_info "Removing all paru variants (forces clean download, not cached binary)..."
+    # Remove each variant individually — pacman errors if a package isn't installed,
+    # so we suppress per-package errors rather than silencing the whole command.
+    for pkg in paru paru-bin paru-bin-debug paru-debug; do
+        if pacman -Q "$pkg" &>/dev/null; then
+            run_cmd sudo pacman -Rns --noconfirm "$pkg"
+        fi
+    done
 
     log_info "Upgrading system so libalpm is at latest before reinstalling..."
     run_cmd sudo pacman -Syu --noconfirm
@@ -113,6 +119,12 @@ main() {
     echo ""
 
     run_cmd sudo pacman -S --needed --noconfirm rust
+
+    # Ensure paru-bin is gone before installing paru (they conflict)
+    if pacman -Q paru-bin &>/dev/null; then
+        log_info "Removing paru-bin before source build (packages conflict)..."
+        run_cmd sudo pacman -Rns --noconfirm paru-bin
+    fi
 
     tmpdir=$(mktemp -d)
     log_info "Cloning paru source from AUR..."
