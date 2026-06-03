@@ -41,6 +41,11 @@ ttf-font-awesome        # Font Awesome icons (for waybar)
 ttf-nerd-fonts-symbols  # Nerd Fonts icon glyphs for terminal
 
 # ------------------------------------------------------------------------------
+# VPN
+# ------------------------------------------------------------------------------
+proton-vpn-cli          # ProtonVPN command-line interface
+
+# ------------------------------------------------------------------------------
 # CONTAINERS — Podman runtime dependencies (Arch-specific package names)
 # These are required for rootless Podman to work. Without them, podman run
 # will fail with network or runtime errors even though the binary is installed.

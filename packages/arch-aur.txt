@@ -37,7 +37,6 @@ pipes.sh                # Animated pipes terminal screensaver
 # ------------------------------------------------------------------------------
 # VPN AND NETWORKING
 # ------------------------------------------------------------------------------
-proton-vpn-cli          # ProtonVPN command-line interface
 netbird                 # WireGuard-based mesh VPN
 
 # ------------------------------------------------------------------------------
