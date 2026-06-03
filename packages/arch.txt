@@ -56,6 +56,21 @@ slirp4netns             # Rootless networking — lets containers reach the inte
 libscfg                 # Config file parser required by netavark
 
 # ------------------------------------------------------------------------------
+# HARDWARE — LOGITECH
+# ------------------------------------------------------------------------------
+solaar                  # Logitech device manager (mice, keyboards, headsets)
+
+# ------------------------------------------------------------------------------
+# SSH
+# ------------------------------------------------------------------------------
+sshs                    # SSH session manager TUI
+
+# ------------------------------------------------------------------------------
+# TERMINAL ENTERTAINMENT
+# ------------------------------------------------------------------------------
+asciiquarium            # ASCII art aquarium in the terminal
+
+# ------------------------------------------------------------------------------
 # SNAPSHOTS
 # ------------------------------------------------------------------------------
 snapper                 # Btrfs/LVM snapshot manager
@@ -72,6 +87,7 @@ libvirt                 # Virtualization API (ubuntu/debian=libvirt-daemon-syste
 # TERMINAL EMULATORS (ghostty is AUR - see arch-aur.txt)
 # ------------------------------------------------------------------------------
 wezterm                 # GPU-accelerated terminal with Lua config
+ghostty                 # Modern GPU-accelerated terminal emulator
 
 # ------------------------------------------------------------------------------
 # SHELL

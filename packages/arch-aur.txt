@@ -18,7 +18,6 @@ swayfx                  # SwayFX — Sway fork with rounded corners, blur, shado
 # ------------------------------------------------------------------------------
 # TERMINAL EMULATORS (fedora/ubuntu/debian=ghostty via COPR/repo or GitHub)
 # ------------------------------------------------------------------------------
-ghostty                 # Modern GPU-accelerated terminal emulator
 waveterm-bin            # Wave Terminal — block-based terminal with built-in AI, workspaces,
                         # and a split-pane layout. Pre-built binary from AUR.
                         # Non-Arch installs handled by modules/05-github.sh
@@ -34,7 +33,6 @@ helium-browser-bin      # Helium browser
 cbonsai                 # Grow ASCII bonsai trees in terminal
 pipes.sh                # Animated pipes terminal screensaver
 shell-color-scripts-git # Collection of colorful terminal scripts
-asciiquarium            # ASCII art aquarium in the terminal
 
 # ------------------------------------------------------------------------------
 # VPN AND NETWORKING
@@ -44,13 +42,11 @@ netbird                 # WireGuard-based mesh VPN
 # ------------------------------------------------------------------------------
 # HARDWARE — LOGITECH
 # ------------------------------------------------------------------------------
-solaar-git              # Logitech device manager (mice, keyboards, headsets)
 logiops-git             # Logitech configuration daemon (custom actions, DPI, etc.)
 
 # ------------------------------------------------------------------------------
 # SSH
 # ------------------------------------------------------------------------------
-sshs                    # SSH session manager TUI
 
 # ------------------------------------------------------------------------------
 # AI AGENTS
