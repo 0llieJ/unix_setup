@@ -14,6 +14,9 @@
 # Anthropic Claude Code CLI — AI coding assistant (installed via official script)
 claude-code
 
+# Goose — AI coding agent from Block (sideload Flatpak, not on Flathub)
+goose
+
 # DevPod — Dev Container manager that works with any IaC backend (Docker, Podman, SSH, cloud)
 # Installed as a static binary from GitHub releases (no package manager needed)
 devpod

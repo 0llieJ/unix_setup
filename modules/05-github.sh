@@ -223,6 +223,50 @@ _install_nerd-fonts() {
     log_success "Nerd Fonts Symbols Only installed"
 }
 
+# ------------------------------------------------------------------------------
+# _install_goose
+# Goose is an AI coding agent from Block. Not on Flathub — distributed as a
+# sideload .flatpak from GitHub releases. Installs via `flatpak install` with
+# the --bundle flag, which handles sideloaded .flatpak files.
+# ------------------------------------------------------------------------------
+_install_goose() {
+    if flatpak info io.github.block.Goose &>/dev/null; then
+        log_info "Goose already installed"
+        return
+    fi
+
+    log_info "Installing Goose (AI agent) from GitHub releases..."
+
+    local version
+    version=$(curl -fsSL https://api.github.com/repositories/846698999/releases/latest \
+        | grep '"tag_name"' \
+        | sed 's/.*"v\(.*\)".*/\1/')
+
+    if [[ -z "$version" ]]; then
+        log_error "Could not determine Goose version from GitHub API"
+        return 1
+    fi
+
+    log_info "Goose version: $version"
+
+    local arch
+    case "$(uname -m)" in
+        x86_64)  arch="x86_64" ;;
+        aarch64) arch="aarch64" ;;
+        *)
+            log_error "Unsupported architecture for Goose: $(uname -m)"
+            return 1
+            ;;
+    esac
+
+    local url="https://github.com/block/goose/releases/download/v${version}/io.github.block.Goose_stable_${arch}.flatpak"
+    run_cmd curl -fsSL -o /tmp/goose.flatpak "$url"
+    run_cmd flatpak install -y --bundle /tmp/goose.flatpak
+    run_cmd rm -f /tmp/goose.flatpak
+
+    log_success "Goose ${version} installed"
+}
+
 # ==============================================================================
 # ENGINE
 # ==============================================================================
