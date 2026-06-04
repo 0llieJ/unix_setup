@@ -224,6 +224,23 @@ _install_nerd-fonts() {
 }
 
 # ------------------------------------------------------------------------------
+# _install_netbird
+# NetBird is a WireGuard-based mesh VPN. The official install script sets up
+# the correct package repository for the current distro and installs netbird
+# via the native package manager. Works on Arch, Fedora, Ubuntu, and Debian.
+# ------------------------------------------------------------------------------
+_install_netbird() {
+    if cmd_exists netbird; then
+        log_info "NetBird already installed at $(command -v netbird)"
+        return
+    fi
+
+    log_info "Installing NetBird via official install script..."
+    run_cmd bash -c "curl -fsSL https://pkgs.netbird.io/install.sh | sh"
+    log_success "NetBird installed"
+}
+
+# ------------------------------------------------------------------------------
 # _install_goose
 # Goose is an AI coding agent from Block. Not on Flathub — distributed as a
 # sideload .flatpak from GitHub releases. Installs via `flatpak install` with

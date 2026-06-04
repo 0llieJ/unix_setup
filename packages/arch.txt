@@ -100,6 +100,11 @@ nushell                 # Modern shell with structured data pipelines
 proxychains-ng          # Route connections through proxy chains
 
 # ------------------------------------------------------------------------------
+# AI
+# ------------------------------------------------------------------------------
+opencode                # AI coding assistant CLI (Arch extra repo)
+
+# ------------------------------------------------------------------------------
 # TERMINAL ENTERTAINMENT
 # ------------------------------------------------------------------------------
 cowsay                  # ASCII art speech bubbles in the terminal

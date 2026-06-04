@@ -37,7 +37,6 @@ shell-color-scripts-git # Collection of colorful terminal scripts
 # ------------------------------------------------------------------------------
 # VPN AND NETWORKING
 # ------------------------------------------------------------------------------
-netbird                 # WireGuard-based mesh VPN
 
 # ------------------------------------------------------------------------------
 # HARDWARE — LOGITECH
