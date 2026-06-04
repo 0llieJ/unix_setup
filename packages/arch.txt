@@ -103,6 +103,7 @@ proxychains-ng          # Route connections through proxy chains
 # AI
 # ------------------------------------------------------------------------------
 opencode                # AI coding assistant CLI (Arch extra repo)
+openai-codex            # OpenAI Codex CLI (Arch extra repo)
 
 # ------------------------------------------------------------------------------
 # TERMINAL ENTERTAINMENT
