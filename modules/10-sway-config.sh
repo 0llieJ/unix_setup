@@ -498,7 +498,12 @@ setup_user_groups() {
 # main
 # ------------------------------------------------------------------------------
 main() {
-    log_section "Module 10: Sway config (optional)"
+    log_section "Module 10: Sway config"
+
+    if [[ "$DISTRO_FAMILY" == "macos" ]]; then
+        log_info "macOS: Sway is Linux-only — skipping"
+        return 0
+    fi
 
     setup_system_services
     setup_user_groups
