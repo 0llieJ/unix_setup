@@ -10,17 +10,15 @@
 #   bash ~/unix_setup/setup.sh --only 13
 #
 # Prerequisites:
-#   - A dedicated swap partition (NOT a Btrfs swap file — Btrfs swap files
-#     do not support hibernation)
+#   - A dedicated swap partition or LVM logical volume
 #   - The swap partition should be at least as large as your RAM
-#   - Run after module 12 (hardware) so the initramfs is already up to date
 #
 # What this module does:
 #   1. Detects the swap partition and whether it is LUKS encrypted
 #   2. If encrypted: generates a keyfile, adds it to the LUKS keyslots,
 #      configures /etc/crypttab so swap is unlocked automatically at boot
 #   3. Adds the `resume` hook to /etc/mkinitcpio.conf in the correct position
-#   4. Adds resume= (and resume_offset= if needed) to the kernel cmdline
+#   4. Adds resume= to the kernel cmdline
 #   5. Rebuilds the initramfs
 #   6. Updates the bootloader config
 #
@@ -62,22 +60,22 @@ KEYFILE="${KEYFILE_DIR}/swap.key"
 find_swap_partition() {
     log_section "Detecting swap partition"
 
-    # lsblk -o outputs one device per line with its type and UUID
+    # Match by filesystem type so both partitions and LVM logical volumes work.
     local swap_line
-    swap_line=$(lsblk -rno NAME,TYPE,UUID | awk '$2=="swap"{print}' | head -1)
+    swap_line=$(lsblk -rno PATH,FSTYPE,UUID | awk '$2=="swap"{print}' | head -1)
 
     if [[ -z "$swap_line" ]]; then
         log_error "No swap partition found."
         log_error "Hibernation requires a dedicated swap partition sized >= your RAM."
-        log_error "See guides/archinstall-bare-metal.md for the correct partition layout."
+        log_error "See guides/encrypted-installation.md for the correct partition layout."
         return 1
     fi
 
-    local name uuid
-    name=$(echo "$swap_line" | awk '{print $1}')
+    local path uuid
+    path=$(echo "$swap_line" | awk '{print $1}')
     uuid=$(echo "$swap_line" | awk '{print $3}')
 
-    SWAP_DEVICE="/dev/${name}"
+    SWAP_DEVICE="$path"
     SWAP_UUID="$uuid"
 
     log_success "Found swap partition: $SWAP_DEVICE (UUID: $SWAP_UUID)"
@@ -147,14 +145,20 @@ detect_swap_encryption() {
 #   partition is decrypted with your passphrase.
 #
 # Security note:
-#   The keyfile is stored in the initramfs which is on the unencrypted /boot
-#   partition. However, the keyfile is only useful to someone who also has
-#   your disk encryption passphrase (for the root partition). An attacker
-#   with physical access would need both. This is the standard accepted
-#   approach for encrypted swap hibernation on Arch.
+#   If /boot is unencrypted, embedding this keyfile in the initramfs allows
+#   someone with physical access to recover the swap key. Secure Boot protects
+#   integrity, not confidentiality. Full protection requires an encrypted boot
+#   chain or a TPM-backed design that does not expose a reusable plaintext key.
 # ------------------------------------------------------------------------------
 setup_encrypted_swap() {
     log_section "Configuring encrypted swap for hibernation"
+
+    log_warn "Encrypted swap hibernation embeds a reusable key in the initramfs."
+    log_warn "If /boot is unencrypted, physical access may expose swap contents."
+    if [[ "$DRY_RUN" != true ]] && ! ask "Continue with the initramfs keyfile approach?" n; then
+        log_info "Encrypted swap hibernation setup skipped"
+        return 1
+    fi
 
     # Find what the LUKS mapper name for swap will be.
     # We'll call it "swap" — this becomes /dev/mapper/swap after unlock.
@@ -259,6 +263,11 @@ configure_mkinitcpio_hooks() {
         return 1
     fi
 
+    if grep -q '^HOOKS=.*\bsystemd\b' "$conf"; then
+        log_info "systemd mkinitcpio hook detected — resume support is already included"
+        return
+    fi
+
     if grep -q "\bresume\b" "$conf"; then
         log_info "resume hook already present in $conf"
         return
@@ -296,7 +305,7 @@ configure_mkinitcpio_hooks() {
 #
 # Also sets HibernateDelaySec in systemd-sleep.conf — this controls how
 # long the machine stays suspended before automatically hibernating.
-# Default is set to 30 minutes.
+# Default is set to 20 minutes.
 # ------------------------------------------------------------------------------
 configure_kernel_resume_param() {
     log_section "Kernel resume parameter"
@@ -323,21 +332,28 @@ configure_kernel_resume_param() {
             ;;
     esac
 
-    # Configure systemd to auto-hibernate after 30 min of suspend
-    # This protects against battery drain during long suspends
-    log_info "Configuring suspend-then-hibernate (hibernates after 30 min of suspend)..."
+    # Configure systemd to auto-hibernate after 20 min of suspend and make
+    # laptop lid closure request suspend-then-hibernate.
+    log_info "Configuring suspend-then-hibernate (hibernates after 20 min of suspend)..."
     if [[ "$DRY_RUN" != true ]]; then
         sudo mkdir -p /etc/systemd/sleep.conf.d
+        sudo mkdir -p /etc/systemd/logind.conf.d
         sudo tee /etc/systemd/sleep.conf.d/hibernate.conf > /dev/null << 'EOF'
 [Sleep]
 # Automatically hibernate after this long in suspend state.
 # Protects against battery drain if the lid is closed for a long time.
-HibernateDelaySec=30min
+HibernateDelaySec=20min
 AllowSuspendThenHibernate=yes
 EOF
-        log_success "Suspend-then-hibernate configured (hibernates after 30 min)"
+        sudo tee /etc/systemd/logind.conf.d/lid-hibernate.conf > /dev/null << 'EOF'
+[Login]
+HandleLidSwitch=suspend-then-hibernate
+HandleLidSwitchDocked=ignore
+HandleLidSwitchExternalPower=suspend-then-hibernate
+EOF
+        log_success "Suspend-then-hibernate configured (hibernates after 20 min)"
     else
-        log_info "[DRY-RUN] Would configure HibernateDelaySec=30min"
+        log_info "[DRY-RUN] Would configure HibernateDelaySec=20min"
     fi
 }
 
@@ -366,7 +382,7 @@ _set_resume_systemd_boot() {
                 # Append to the options line
                 sudo sed -i "s|^options \(.*\)|options \1 resume=${resume_device}|" "$entry"
                 log_info "Updated: $(basename "$entry")"
-                (( updated++ ))
+                (( ++updated ))
             fi
         done
         [[ $updated -gt 0 ]] && log_success "resume= added to $updated boot entries"
@@ -455,6 +471,16 @@ rebuild_initramfs() {
 
 main() {
     log_section "Module 13: Hibernation"
+
+    if [[ "$DISTRO_FAMILY" != "arch" ]]; then
+        log_error "Module 13 currently supports Arch/mkinitcpio systems only"
+        return 1
+    fi
+
+    if [[ "$SYSTEM_PROFILE" == "atomic" ]]; then
+        log_error "Module 13 does not support immutable/OSTree systems"
+        return 1
+    fi
 
     echo ""
     log_info "Bootloader : $BOOTLOADER"

@@ -1,0 +1,63 @@
+# ==============================================================================
+# MISE-ATOMIC.TXT - User-level tools for immutable/OSTree desktops
+# ==============================================================================
+# This is a complete manifest rather than a small override. Atomic systems
+# should avoid layering general CLI tools into the immutable base image.
+# ==============================================================================
+
+# Language runtimes
+python@3.12
+node@lts
+go@latest
+lua@5.4
+rust@stable
+
+# File search and navigation
+ripgrep@latest
+fd@latest
+fzf@latest
+zoxide@latest
+yazi@latest
+
+# Text and data processing
+jq@latest
+bat@latest
+delta@latest
+eza@latest
+
+# Shell and Git tools
+starship@latest
+lazygit@latest
+zellij@latest
+tmux@latest
+
+# Development tooling
+uv@latest
+chezmoi@latest
+lua-language-server@latest
+stylua@latest
+
+# System monitoring
+btop@latest
+bottom@latest
+fastfetch@latest
+dust@latest
+duf@latest
+
+# CLI utilities
+gh@latest
+direnv@latest
+just@latest
+hyperfine@latest
+glow@latest
+aqua:tldr-pages/tlrc@latest
+
+# Infrastructure and containers
+lima@latest
+lazyssh@latest
+rclone@latest
+lazydocker@latest
+
+# Shell history and blog
+atuin@latest
+hugo@latest

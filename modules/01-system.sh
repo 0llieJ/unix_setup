@@ -2,17 +2,9 @@
 # ==============================================================================
 # modules/01-system.sh — Base system configuration
 # ==============================================================================
-# The first module to run. Sets up the foundational system settings that
-# everything else depends on:
-#
-#   1. Firewall — deny incoming, allow outgoing
-#   2. User groups — adds the current user to groups needed for hardware access
-#   3. Sudo feedback — shows asterisks when typing passwords in the terminal
-#   4. ClamAV — configures antivirus with automatic definition updates and a
-#               weekly home-directory scan
-#
-# Run order: must run before any package installs because the firewall should
-# be in place as early as possible on a fresh machine.
+# Defines system configuration functions and performs the base system upgrade.
+# Post-package configuration is run by modules/03-system-config.sh so services
+# are configured only after their packages have been installed.
 # ==============================================================================
 
 # Guard against being sourced more than once
@@ -21,12 +13,14 @@ _MODULE_SYSTEM_LOADED=1
 
 # ------------------------------------------------------------------------------
 # setup_firewall
-# Detects whichever firewall tool is available and applies a minimal ruleset:
+# Asks which firewall to use and applies a minimal ruleset:
 #   - Default deny on incoming connections
 #   - Default allow on outgoing connections
 #   - SSH allowed in (so remote installs don't lock you out)
+#   - LocalSend TCP port 53317 allowed in
 #
-# Tool priority: firewalld (Fedora default) → ufw (Ubuntu default) → iptables
+# Set FIREWALL=firewalld, FIREWALL=ufw, FIREWALL=nftables, or FIREWALL=none
+# to skip the prompt.
 # ------------------------------------------------------------------------------
 setup_firewall() {
     log_section "Firewall"
@@ -41,44 +35,131 @@ setup_firewall() {
         return
     fi
 
-    if cmd_exists firewall-cmd; then
-        # firewalld — Fedora/RHEL default. Uses zones; "public" is the default zone.
-        log_info "Configuring firewalld..."
-        run_cmd sudo systemctl enable --now firewalld
-        # Set the default zone to public (restrictive by default — only SSH allowed)
-        run_cmd sudo firewall-cmd --set-default-zone=public
-        run_cmd sudo firewall-cmd --runtime-to-permanent
-        log_success "firewalld configured: default zone = public (SSH allowed, all else denied)"
+    local firewall="${FIREWALL:-}"
 
-    elif cmd_exists ufw; then
-        # ufw — Ubuntu/Debian default. Simple wrapper around iptables.
-        log_info "Configuring ufw..."
-        run_cmd sudo ufw default deny incoming
-        run_cmd sudo ufw default allow outgoing
-        # Allow SSH so remote connections aren't broken
-        run_cmd sudo ufw allow ssh
-        run_cmd sudo ufw --force enable
-        log_success "ufw configured: deny incoming, allow outgoing, SSH allowed"
-
-    elif cmd_exists iptables; then
-        # iptables — lowest-level fallback, available on almost all Linux systems.
-        # These rules are not persistent across reboots without iptables-save;
-        # a warning is shown so the user knows to make them permanent.
-        log_info "Configuring iptables (fallback)..."
-        run_cmd sudo iptables -P INPUT DROP       # Drop all incoming by default
-        run_cmd sudo iptables -P FORWARD DROP     # Drop forwarded packets
-        run_cmd sudo iptables -P OUTPUT ACCEPT    # Allow all outgoing
-        # Allow established/related connections (needed for replies to outgoing traffic)
-        run_cmd sudo iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
-        # Allow loopback (localhost) — many services communicate via 127.0.0.1
-        run_cmd sudo iptables -A INPUT -i lo -j ACCEPT
-        # Allow SSH
-        run_cmd sudo iptables -A INPUT -p tcp --dport 22 -j ACCEPT
-        log_warn "iptables rules set but NOT persistent. Install iptables-persistent or equivalent."
-
-    else
-        log_warn "No firewall tool found (firewalld, ufw, iptables). Skipping firewall setup."
+    if [[ -z "$firewall" ]]; then
+        if [[ "$DRY_RUN" == true ]]; then
+            firewall="firewalld"
+            log_info "[DRY-RUN] Defaulting firewall preview to firewalld"
+        else
+            echo "  Choose a firewall:"
+            echo "    1) firewalld (recommended)"
+            echo "    2) ufw"
+            echo "    3) nftables"
+            echo "    4) none"
+            echo ""
+            local choice
+            read -r -p "  Choice [1/2/3/4] (default: 1): " choice
+            case "${choice:-1}" in
+                1) firewall="firewalld" ;;
+                2) firewall="ufw" ;;
+                3) firewall="nftables" ;;
+                4) firewall="none" ;;
+                *)
+                    log_error "Invalid firewall choice: $choice"
+                    return 1
+                    ;;
+            esac
+        fi
     fi
+
+    case "$firewall" in
+        firewalld)
+            if ! cmd_exists firewall-cmd; then
+                pkg_install firewalld
+            fi
+            if [[ "$DRY_RUN" != true ]] && ! cmd_exists firewall-cmd; then
+                log_error "firewalld was not installed"
+                return 1
+            fi
+
+        # firewalld — Fedora/RHEL default. Uses zones; "public" is the default zone.
+            log_info "Configuring firewalld..."
+            run_cmd sudo systemctl enable --now firewalld
+            run_cmd sudo firewall-cmd --set-default-zone=public
+            run_cmd sudo firewall-cmd --permanent --zone=public --add-service=ssh
+            run_cmd sudo firewall-cmd --permanent --zone=public --add-port=53317/tcp
+            run_cmd sudo firewall-cmd --reload
+            log_success "firewalld configured: SSH and LocalSend TCP 53317 allowed"
+            ;;
+
+        ufw)
+            if ! cmd_exists ufw; then
+                pkg_install ufw
+            fi
+            if [[ "$DRY_RUN" != true ]] && ! cmd_exists ufw; then
+                log_error "ufw was not installed"
+                return 1
+            fi
+
+        # ufw — Ubuntu/Debian default. Simple wrapper around iptables.
+            log_info "Configuring ufw..."
+            run_cmd sudo ufw default deny incoming
+            run_cmd sudo ufw default allow outgoing
+            run_cmd sudo ufw allow ssh
+            run_cmd sudo ufw allow 53317/tcp comment LocalSend
+            run_cmd sudo ufw --force enable
+            log_success "ufw configured: SSH and LocalSend TCP 53317 allowed"
+            ;;
+
+        nftables)
+            if ! cmd_exists nft; then
+                pkg_install nftables
+            fi
+            if [[ "$DRY_RUN" != true ]] && ! cmd_exists nft; then
+                log_error "nftables was not installed"
+                return 1
+            fi
+
+            log_info "Configuring nftables..."
+            if [[ "$DRY_RUN" == true ]]; then
+                log_info "[DRY-RUN] Would write /etc/nftables.conf"
+            else
+                sudo tee /etc/nftables.conf > /dev/null << 'EOF'
+#!/usr/bin/nft -f
+
+flush ruleset
+
+table inet filter {
+    chain input {
+        type filter hook input priority filter; policy drop;
+
+        ct state invalid drop
+        ct state established,related accept
+        iifname "lo" accept
+
+        # ICMP is required for diagnostics, IPv6 neighbour discovery, and PMTU.
+        ip protocol icmp accept
+        ip6 nexthdr ipv6-icmp accept
+
+        tcp dport 22 ct state new accept
+        tcp dport 53317 ct state new accept comment "LocalSend"
+    }
+
+    chain forward {
+        type filter hook forward priority filter; policy drop;
+    }
+
+    chain output {
+        type filter hook output priority filter; policy accept;
+    }
+}
+EOF
+            fi
+            run_cmd sudo nft --check --file /etc/nftables.conf
+            run_cmd sudo systemctl enable --now nftables
+            log_success "nftables configured: SSH and LocalSend TCP 53317 allowed"
+            ;;
+
+        none)
+            log_warn "Firewall setup skipped by user"
+            ;;
+
+        *)
+            log_error "Unsupported FIREWALL value '$firewall' (use firewalld, ufw, nftables, or none)"
+            return 1
+            ;;
+    esac
 }
 
 # ------------------------------------------------------------------------------
@@ -134,6 +215,11 @@ setup_user_groups() {
 setup_sudo_feedback() {
     log_section "Sudo password feedback"
 
+    if [[ "$DISTRO_FAMILY" == "macos" ]]; then
+        log_info "macOS: leaving the system sudoers configuration unchanged"
+        return
+    fi
+
     local sudoers_file="/etc/sudoers.d/pwfeedback"
 
     if [[ -f "$sudoers_file" ]]; then
@@ -185,7 +271,9 @@ setup_clamav() {
     # Create a weekly home-directory scan as a user systemd timer
     # (user timers run without root and only scan $HOME, not the whole system)
     log_info "Setting up weekly ClamAV home scan..."
-    if [[ "$DRY_RUN" != true ]]; then
+    if ! has_systemd; then
+        log_warn "systemd is not active, skipping the ClamAV timer"
+    elif [[ "$DRY_RUN" != true ]]; then
         mkdir -p ~/.config/systemd/user
 
         # The service defines what to run: clamscan on the home directory.
@@ -249,6 +337,11 @@ setup_podman() {
         return
     fi
 
+    if ! has_systemd; then
+        log_warn "systemd is not active, skipping the Podman socket"
+        return
+    fi
+
     # podman.socket is a user-level unit — it activates on demand when something
     # connects to the socket, rather than running podman as a background daemon.
     run_cmd systemctl --user enable --now podman.socket
@@ -307,19 +400,44 @@ setup_pacman() {
 }
 
 # ------------------------------------------------------------------------------
+# update_system
+# Fully updates the mutable base operating system before repositories, package
+# installation, and CPU microcode are configured.
+# ------------------------------------------------------------------------------
+update_system() {
+    log_section "System update"
+
+    if [[ "$SYSTEM_PROFILE" == "atomic" ]]; then
+        log_info "Atomic system detected — base image updates are managed separately"
+        return
+    fi
+
+    case "$PKG_MANAGER" in
+        pacman) run_cmd sudo pacman -Syu --noconfirm ;;
+        dnf)    run_cmd sudo dnf upgrade --refresh -y ;;
+        apt)
+            run_cmd sudo apt-get update
+            run_cmd sudo apt-get full-upgrade -y
+            ;;
+        brew)
+            log_info "macOS system updates are managed by Software Update"
+            ;;
+        *) log_error "No update method for package manager: $PKG_MANAGER"; return 1 ;;
+    esac
+}
+
+# ------------------------------------------------------------------------------
 # main — called by setup.sh to run this module
 # ------------------------------------------------------------------------------
 main() {
-    log_section "Module 01: System"
+    log_section "Module 01: System preflight"
 
     setup_pacman
-    setup_firewall
-    setup_user_groups
-    setup_sudo_feedback
-    setup_clamav
-    setup_podman
+    update_system
 
-    log_success "Module 01 complete"
+    log_success "Module 01 preflight complete"
 }
 
-main "$@"
+if [[ "${SYSTEM_MODULE_NO_MAIN:-false}" != true ]]; then
+    main "$@"
+fi

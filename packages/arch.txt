@@ -21,11 +21,33 @@ openssh                 # SSH client and server
 # CRYPTOGRAPHY (ubuntu/debian=gnupg2)
 # ------------------------------------------------------------------------------
 gnupg                   # GNU Privacy Guard - encryption and signing
+libsecret               # Secret Service client library and secret-tool
 
 # ------------------------------------------------------------------------------
 # SYSTEM TOOLS
 # ------------------------------------------------------------------------------
 polkit-gnome            # Authentication agent for privilege escalation
+networkmanager          # Network management daemon
+network-manager-applet  # Tray applet and graphical connection editor
+bluez                   # Bluetooth daemon
+bluez-utils             # Bluetooth command-line utilities
+blueman                 # Bluetooth tray applet and manager
+pcsclite                # Smart-card daemon used by YubiKeys and security tokens
+ccid                    # USB smart-card reader driver
+
+# ------------------------------------------------------------------------------
+# DESKTOP SESSION RUNTIME
+# ------------------------------------------------------------------------------
+pipewire                # Audio and video routing service
+pipewire-pulse          # PulseAudio-compatible PipeWire service
+wireplumber             # PipeWire session manager
+xorg-xwayland           # X11 application compatibility under Wayland
+xdg-desktop-portal      # Desktop integration portal
+xdg-desktop-portal-wlr  # wlroots/Sway portal backend
+power-profiles-daemon   # Balanced, performance and power-saver profiles
+xdg-utils               # Standard desktop open/URL helpers
+desktop-file-utils      # Desktop entry cache and validation
+shared-mime-info        # File type database
 
 # ------------------------------------------------------------------------------
 # COMPRESSION (fedora=p7zip-plugins)
@@ -75,6 +97,7 @@ asciiquarium            # ASCII art aquarium in the terminal
 # ------------------------------------------------------------------------------
 snapper                 # Btrfs/LVM snapshot manager
 snap-pac                # Automatically create snapper snapshots on pacman transactions
+pacman-contrib          # paccache timer and Arch package maintenance tools
 
 # ------------------------------------------------------------------------------
 # VIRTUALIZATION (fedora=qemu-kvm, ubuntu/debian=qemu-system-x86)
@@ -104,6 +127,7 @@ proxychains-ng          # Route connections through proxy chains
 # ------------------------------------------------------------------------------
 opencode                # AI coding assistant CLI (Arch extra repo)
 openai-codex            # OpenAI Codex CLI (Arch extra repo)
+tldr                    # Community-maintained command examples
 
 # ------------------------------------------------------------------------------
 # TERMINAL ENTERTAINMENT

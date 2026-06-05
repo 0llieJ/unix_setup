@@ -27,6 +27,14 @@ set -euo pipefail
 SETUP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export SETUP_DIR
 
+# AUR builds, mise, Flatpak, user services, SSH keys, and chezmoi must run as
+# the target desktop user. Individual privileged operations use sudo.
+if [[ "$EUID" -eq 0 ]]; then
+    printf 'ERROR: Run this setup as your normal user, not as root or with sudo.\n' >&2
+    printf 'Example: bash %s/setup.sh\n' "$SETUP_DIR" >&2
+    exit 1
+fi
+
 # ------------------------------------------------------------------------------
 # Source shared libraries
 # Order matters: log.sh first (others call log_*), then detect.sh and utils.sh
@@ -45,12 +53,20 @@ source "$SETUP_DIR/lib/utils.sh"
 # DRY_RUN=true     set before invoking to preview without changes
 # ------------------------------------------------------------------------------
 ONLY_MODULE=""
-SKIP_MODULE=""
+SKIP_MODULES=()
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --only) ONLY_MODULE="$2"; shift 2 ;;
-        --skip) SKIP_MODULE="$2"; shift 2 ;;
+        --only)
+            [[ $# -ge 2 ]] || { log_error "--only requires a module number"; exit 1; }
+            ONLY_MODULE="$2"
+            shift 2
+            ;;
+        --skip)
+            [[ $# -ge 2 ]] || { log_error "--skip requires a module number"; exit 1; }
+            SKIP_MODULES+=("$2")
+            shift 2
+            ;;
         --dry-run) DRY_RUN=true; shift ;;
         *) log_error "Unknown argument: $1"; exit 1 ;;
     esac
@@ -61,7 +77,9 @@ export DRY_RUN
 # ------------------------------------------------------------------------------
 # Banner
 # ------------------------------------------------------------------------------
-clear
+if [[ -t 1 && -n "${TERM:-}" ]]; then
+    clear
+fi
 printf "${BOLD}"
 cat << 'BANNER'
   ███████╗███████╗████████╗██╗   ██╗██████╗
@@ -83,6 +101,7 @@ log_section "Detecting system"
 detect_all
 
 log_info "Distro:      $OS_NAME ($DISTRO_FAMILY)"
+log_info "Profile:     $SYSTEM_PROFILE"
 log_info "Pkg manager: $PKG_MANAGER"
 log_info "Root FS:     $ROOT_FS"
 log_info "Bootloader:  $BOOTLOADER"
@@ -130,11 +149,14 @@ run_module() {
         return 0
     fi
 
-    # Apply --skip filter
-    if [[ -n "$SKIP_MODULE" && "$module_num" == "$SKIP_MODULE" ]]; then
-        log_warn "Skipping $module_name (--skip $SKIP_MODULE)"
-        return 0
-    fi
+    # Apply --skip filters
+    local skipped
+    for skipped in "${SKIP_MODULES[@]}"; do
+        if [[ "$module_num" == "$skipped" ]]; then
+            log_warn "Skipping $module_name (--skip $skipped)"
+            return 0
+        fi
+    done
 
     log_info "Running module: $module_name"
     # Source rather than exec so modules share variables and functions
@@ -148,11 +170,14 @@ run_module() {
 # ------------------------------------------------------------------------------
 run_module "$SETUP_DIR/modules/01-system.sh"
 run_module "$SETUP_DIR/modules/02-repos.sh"
+run_module "$SETUP_DIR/modules/03-microcode.sh"
 run_module "$SETUP_DIR/modules/03-packages.sh"
+run_module "$SETUP_DIR/modules/03-system-config.sh"
+run_module "$SETUP_DIR/modules/10-sway-config.sh"
 run_module "$SETUP_DIR/modules/04-userland.sh"
 run_module "$SETUP_DIR/modules/05-github.sh"
 run_module "$SETUP_DIR/modules/06-atomic.sh"
 run_module "$SETUP_DIR/modules/07-proton.sh"
 run_module "$SETUP_DIR/modules/08-dotfiles.sh"
-run_module "$SETUP_DIR/modules/10-sway-config.sh"
+run_module "$SETUP_DIR/modules/09-updates.sh"
 run_module "$SETUP_DIR/modules/09-done.sh"

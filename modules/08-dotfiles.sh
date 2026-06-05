@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# modules/07-dotfiles.sh — SSH key setup and dotfile application via chezmoi
+# modules/08-dotfiles.sh — SSH key setup and dotfile application via chezmoi
 # ==============================================================================
 # The final configuration step — pulls down your personal dotfiles and applies
 # them to the home directory.
@@ -78,7 +78,7 @@ setup_ssh_key() {
 
     # Pause and wait for confirmation before trying to clone via SSH
     if ! ask "Have you added the key to GitHub and are ready to continue?" n; then
-        log_warn "Skipping dotfile setup — re-run module 07-dotfiles.sh when ready"
+        log_warn "Skipping dotfile setup — re-run module 08-dotfiles.sh when ready"
         return 1
     fi
 }
@@ -91,9 +91,7 @@ setup_ssh_key() {
 # chezmoi apply then symlinks or copies files into $HOME according to the repo's
 # .chezmoiignore and template rules.
 #
-# If chezmoi is already initialised (source dir exists), init is skipped and
-# only apply is run. This makes the module safe to re-run to pick up new
-# dotfile changes.
+# If chezmoi is already initialised, update fetches and applies remote changes.
 # ------------------------------------------------------------------------------
 setup_chezmoi() {
     log_section "Dotfiles (chezmoi)"
@@ -111,14 +109,12 @@ setup_chezmoi() {
     fi
 
     if [[ -d "$CHEZMOI_SOURCE" ]]; then
-        log_info "chezmoi source directory exists — skipping init, running apply only"
+        log_info "Updating and applying existing chezmoi source..."
+        run_cmd "$chezmoi_bin" update
     else
         log_info "Initialising chezmoi from $DOTFILES_REPO..."
-        run_cmd "$chezmoi_bin" init "$DOTFILES_REPO"
+        run_cmd "$chezmoi_bin" init --apply "$DOTFILES_REPO"
     fi
-
-    log_info "Applying dotfiles..."
-    run_cmd "$chezmoi_bin" apply
 
     log_success "Dotfiles applied"
 }

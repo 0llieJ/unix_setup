@@ -16,6 +16,7 @@ openssh                 # SSH client and server
 # CRYPTOGRAPHY (ubuntu/debian=gnupg2)
 # ------------------------------------------------------------------------------
 gnupg                   # GNU Privacy Guard - encryption and signing
+libsecret               # Secret Service client library
 
 # ------------------------------------------------------------------------------
 # SECURITY (Fedora splits clamav-update out; other distros bundle it)
@@ -26,6 +27,8 @@ clamav-update           # Virus database updater (freshclam)
 # SYSTEM TOOLS
 # ------------------------------------------------------------------------------
 polkit-gnome            # Authentication agent for privilege escalation
+tuned                   # Fedora's system tuning and power profile daemon
+tuned-ppd               # power-profiles-daemon-compatible D-Bus API
 
 # ------------------------------------------------------------------------------
 # COMPRESSION (arch=p7zip, ubuntu/debian=p7zip)

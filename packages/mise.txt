@@ -84,14 +84,14 @@ direnv@latest       # Per-directory environment variables
 just@latest         # Command runner (Makefile alternative)
 hyperfine@latest    # Benchmarking tool
 glow@latest         # Markdown renderer for the terminal
-tlrc@latest         # tldr pages client
+# tldr is installed from Arch's official repository on Arch systems.
 
 # ------------------------------------------------------------------------------
 # Infrastructure
 # ------------------------------------------------------------------------------
 lima@latest         # Linux VMs on macOS (and Linux)
 lazyssh@latest      # SSH session manager TUI
-rclone@latest       # Cloud storage sync (used for Proton Drive in module 06)
+rclone@latest       # Cloud storage sync (used for Proton Drive in module 07)
 
 # ------------------------------------------------------------------------------
 # Containers

@@ -16,11 +16,14 @@ openssh-client          # SSH client
 # CRYPTOGRAPHY (fedora/arch=gnupg)
 # ------------------------------------------------------------------------------
 gnupg2                  # GNU Privacy Guard - encryption and signing
+libsecret-1-0           # Secret Service client library
+libsecret-tools         # Provides secret-tool
 
 # ------------------------------------------------------------------------------
 # SYSTEM TOOLS
 # ------------------------------------------------------------------------------
 polkit-gnome            # Authentication agent for privilege escalation
+power-profiles-daemon   # Balanced, performance and power-saver profiles
 
 # ------------------------------------------------------------------------------
 # COMPRESSION (fedora=p7zip-plugins, arch=p7zip)

@@ -51,6 +51,8 @@ wl-clipboard            # Wayland clipboard utilities (wl-copy, wl-paste)
 # SECURITY & CRYPTOGRAPHY
 # ------------------------------------------------------------------------------
 openssl                 # TLS/SSL toolkit and cryptography library
+pass                    # Unix password manager backed by GPG and Git
+gnome-keyring           # Secret Service keyring for browsers and desktop apps
 
 # ------------------------------------------------------------------------------
 # BACKUP & RECOVERY
@@ -80,6 +82,14 @@ podman-compose          # Run docker-compose files with Podman
 flatpak                 # Application sandboxing and distribution
 
 # ------------------------------------------------------------------------------
+# DESKTOP INTEGRATION
+# ------------------------------------------------------------------------------
+udisks2                 # D-Bus storage service for mounting removable drives
+gvfs                    # Trash, removable media and remote locations in file managers
+xdg-user-dirs           # Creates Downloads, Documents, Pictures, etc.
+xdg-desktop-portal-gtk  # Fallback desktop portal for file pickers and settings
+
+# ------------------------------------------------------------------------------
 # VIRTUALIZATION (partial - distro files add distro-specific packages)
 # ------------------------------------------------------------------------------
 virt-manager            # GUI for managing VMs
@@ -92,7 +102,7 @@ virt-manager            # GUI for managing VMs
 # TOOLS MANAGED BY MISE (removed from system packages)
 # ==============================================================================
 # neovim, tmux, zellij, jq, ripgrep, fzf, fd, bat, eza, zoxide,
-# starship, lazygit, delta, yazi, btop, bottom, fastfetch, tlrc, lazyssh,
+# starship, lazygit, delta, yazi, btop, bottom, fastfetch, lazyssh,
 # lima, opencode, cowsay, uv, chezmoi, node, python, go, lua, rust,
 # dust, duf, gh, direnv, just, hyperfine, glow, lua-language-server, stylua
 

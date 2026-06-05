@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# modules/06-proton.sh — Proton Drive mount via rclone
+# modules/07-proton.sh — Proton Drive mount via rclone
 # ==============================================================================
 # Mounts Proton Drive as a local directory using rclone's FUSE driver, managed
 # as a systemd user service so it starts automatically on login.
@@ -69,7 +69,7 @@ check_remote_configured() {
         log_warn "Run the following to set it up (one-time step):"
         log_warn "  rclone config"
         log_warn "  → New remote → name: ${PROTON_REMOTE} → type: protondrive → follow prompts"
-        log_warn "Then re-run this module: bash ${SETUP_DIR}/modules/06-proton.sh"
+        log_warn "Then re-run this module: bash ${SETUP_DIR}/modules/07-proton.sh"
         return 1
     fi
 }
@@ -167,13 +167,14 @@ main() {
     check_remote_configured || return 0
     create_mount_point
 
-    if [[ "$DISTRO_FAMILY" == "macos" ]]; then
-        # macOS doesn't use systemd. Proton Drive can still be mounted manually:
+    if ! has_systemd; then
+        # Non-systemd systems can still mount Proton Drive manually:
         #   rclone mount proton: ~/ProtonDrive --vfs-cache-mode writes --daemon
-        # A launchd plist could automate this — add it here in future.
-        log_warn "macOS: systemd not available — Proton Drive auto-mount not configured"
+        log_warn "systemd is not active — Proton Drive auto-mount not configured"
         log_warn "Mount manually with: rclone mount proton: ~/ProtonDrive --vfs-cache-mode writes --daemon"
-        log_warn "macFUSE must be installed first: brew install --cask macfuse"
+        if [[ "$DISTRO_FAMILY" == "macos" ]]; then
+            log_warn "macFUSE must be installed first: brew install --cask macfuse"
+        fi
         return 0
     fi
 

@@ -7,27 +7,33 @@ Modular system setup script for fresh Linux installs. Supports Arch (and derivat
 ## Quick start
 
 ```bash
-git clone git@github.com:0llieJ/unix_setup.git ~/unix_setup
+git clone https://github.com/0llieJ/unix_setup.git ~/unix_setup
 bash ~/unix_setup/setup.sh
 ```
 
 Preview what it would do without changing anything:
 
 ```bash
-DRY_RUN=true bash ~/setup/setup.sh
+DRY_RUN=true bash ~/unix_setup/setup.sh
 ```
 
 Run a single module:
 
 ```bash
-bash ~/setup/setup.sh --only 05
+bash ~/unix_setup/setup.sh --only 05
 ```
 
 Skip a module:
 
 ```bash
-bash ~/setup/setup.sh --skip 07
+bash ~/unix_setup/setup.sh --skip 07
 ```
+
+Run the bootstrap as your normal user, not with `sudo`. The script requests
+privileges for individual system operations. Firewall setup prompts for
+`firewalld`, `ufw`, `nftables`, or no firewall. Set `FIREWALL=firewalld`,
+`FIREWALL=ufw`, `FIREWALL=nftables`, or `FIREWALL=none` to select
+non-interactively.
 
 ---
 
@@ -35,32 +41,40 @@ bash ~/setup/setup.sh --skip 07
 
 | Module | Name | What it does |
 |--------|------|-------------|
-| 01 | system | Firewall, user groups, sudo feedback, ClamAV, Podman socket |
+| 01 | system | Base package-manager configuration and full system upgrade |
 | 02 | repos | Third-party repos — paru (Arch), RPM Fusion + COPRs (Fedora), Brave/NetBird (Ubuntu/Debian) |
-| 03 | packages | System packages via pacman/dnf/apt, AUR packages, Sway ecosystem |
+| 03 | packages | CPU microcode, applications, firewall, groups, ClamAV and Podman |
+| 10 | sway-config | Configures the login manager and Sway before userland and dotfiles |
 | 04 | userland | mise tools, Flatpak apps, Homebrew formulae |
 | 05 | github | Tools from GitHub/install scripts — Claude Code, DevPod, OpenAI Codex, Nerd Fonts |
 | 06 | atomic | Snapper snapshots, Timeshift, boot menu integration (GRUB / systemd-boot / Limine) |
 | 07 | proton | Proton Drive via rclone, mounted as `~/ProtonDrive` on login |
-| 08 | dotfiles | SSH key setup, chezmoi init + apply |
-| 09 | done | Summary and follow-up actions |
+| 08 | dotfiles | SSH key setup, chezmoi init/update + apply |
+| 09 | updates/done | Weekly automatic updates, summary and follow-up actions |
 
-Optional modules (not in the default run):
+Additional modules:
 
 | Module | Name | What it does |
 |--------|------|-------------|
-| 10 | sway-config | Configures SDDM/greetd, writes minimal Sway config, applies Flameshot Wayland fix |
 | 11 | remove | Cleanly removes a tool and its config files (see below) |
-| 12 | hardware | CPU microcode (Intel/AMD) + GPU drivers (Nvidia/AMD/Intel) — auto-detects everything |
+| 12 | hardware | Optional GPU drivers and userspace acceleration packages |
 | 13 | hibernate | Hibernation setup — encrypted swap keyfile, resume= kernel param, initramfs hooks |
 
 ---
 
 ## Install guide
 
-See [`guides/archinstall-bare-metal.md`](guides/archinstall-bare-metal.md) for a complete
-step-by-step archinstall walkthrough covering disk encryption, correct partition layout,
-Btrfs subvolumes, swap for hibernation, and systemd-boot.
+For a fresh Arch installation, follow
+[`guides/archinstall.md`](guides/archinstall.md). It covers Archinstall,
+encrypted LVM, the first bootstrap run, verification, hibernation, and recovery
+backups.
+
+See [`guides/encrypted-installation.md`](guides/encrypted-installation.md) for
+the equivalent storage design across other common installers.
+
+The older [`guides/archinstall-bare-metal.md`](guides/archinstall-bare-metal.md)
+documents the legacy separate-swap layout and is not recommended for new
+installations.
 
 ---
 
@@ -72,45 +86,87 @@ All package decisions live in `packages/` as plain text files — one package pe
 |------|-----------------|
 | `common.txt` | Packages with identical names on all distros |
 | `arch.txt` | Arch-specific package names + Podman runtime deps |
-| `arch-aur.txt` | AUR packages (paru) — SwayFX, Ghostty, greetd greeters |
+| `arch-aur.txt` | AUR packages installed through paru |
 | `fedora.txt` | Fedora-specific package names + COPRs |
 | `ubuntu.txt` | Ubuntu-specific package names |
 | `debian.txt` | Debian-specific package names |
 | `sway.txt` | Sway desktop ecosystem — compositor, bar, lock screen, SDDM |
 | `flatpak.txt` | Flatpak GUI apps — Zed, Bitwarden, Signal, Obsidian, etc. |
-| `mise.txt` | CLI tools and language runtimes via mise |
+| `mise.txt` | Default CLI tools and language runtimes via mise |
+| `mise-atomic.txt` | Complete user-level tool set for OSTree/rpm-ostree desktops |
 | `homebrew.txt` | Homebrew formulae — tools not available in mise |
 | `github.txt` | Tools installed from GitHub releases or install scripts |
 
-### Package install priority
+### mise manifests
 
-Tools are installed in this order, with earlier sources preferred:
+Module 04 selects one complete mise manifest in this order:
 
-1. **mise** — language runtimes and CLI tools (no root, user-level)
-2. **Flatpak** — GUI applications (sandboxed, distro-agnostic)
-3. **Homebrew** — CLI tools not in mise
-4. **AUR** — Arch only, via paru
-5. **System repos** — pacman / dnf / apt (root required)
-6. **GitHub / install scripts** — tools not available anywhere else
+1. `MISE_PACKAGES_FILE=/path/to/file`
+2. `packages/mise-atomic.txt` on OSTree/rpm-ostree systems
+3. `packages/mise-<distro>.txt`, such as `mise-arch.txt`
+4. `packages/mise.txt`
+
+This allows mutable Arch systems to use a reduced `mise-arch.txt` while atomic
+desktops keep the complete tool set in mise.
+
+On atomic desktops the bootstrap also skips native repository changes, package
+layering, AUR installation, and Snapper setup. Flatpak, mise, user-level GitHub
+tools, and chezmoi continue normally.
+
+---
+
+## Automatic services and updates
+
+The default run enables NetworkManager, the selected login manager, Bluetooth,
+PipeWire/WirePlumber, libvirt, smart-card support, Podman, SSD trimming, power
+profiles, the selected firewall, Snapper timers, and bootloader snapshot
+integration. Sway session support also includes portals, a polkit agent,
+GNOME Keyring, removable-media handling, XWayland, the `wl-copy`/`wl-paste`
+utilities, and the Flameshot background process.
+
+Module 09 creates persistent weekly timers:
+
+- System: pacman, dnf, apt, or rpm-ostree on Sunday morning.
+- User: Flatpak, mise, and Linux Homebrew on Sunday afternoon.
+- AUR: available updates are logged but installation remains manual with
+  `paru -Sua`, because unattended PKGBUILD execution bypasses review.
+
+Updates never reboot the machine automatically. Check them with:
+
+```bash
+systemctl list-timers unix-setup-system-update.timer
+systemctl --user list-timers unix-setup-user-update.timer
+```
+
+Proton Drive is enabled on login only after the `proton:` rclone remote has
+been configured. Hibernation is intentionally enabled separately with
+`bash ~/unix_setup/setup.sh --only 13` after persistent swap has been verified.
 
 ---
 
 ## Recommended partition layout
 
-For snapshots and rollbacks to work safely, `/boot` must be on a **separate partition** from Btrfs. If `/boot` is inside Btrfs, a rollback will revert your kernel and bootloader config alongside the OS — which can leave the system unbootable.
+Use an unencrypted boot area and one LUKS2 container holding LVM root and swap
+volumes. This encrypts the hibernation image and keeps bootloader repair
+separate from the operating-system data.
 
 ```
-/dev/nvme0n1p1   fat32   /boot/efi    512MB   EFI system partition
-/dev/nvme0n1p2   ext4    /boot        1GB     Kernel and initramfs (separate, not in Btrfs)
-/dev/nvme0n1p3   btrfs   /            rest
-  subvol @        →  /
-  subvol @home    →  /home
-  subvol @snapshots → /.snapshots
+/dev/nvme0n1p1   fat32   ESP          1GB
+/dev/nvme0n1p2   ext4    /boot        1-2GB    # GRUB; omit for systemd-boot
+/dev/nvme0n1p3   LUKS2                rest
+  └─ LVM volume group
+     ├─ root       btrfs              remaining space
+     └─ swap       swap               RAM + 10-20%
 ```
 
-With this layout, rolling back `/` never touches `/boot` — the bootloader always reflects the current kernel and stays bootable. Module 06 will warn you at runtime if `/boot` doesn't appear to be on a separate partition.
+For systemd-boot, mount the ESP at `/boot`. For GRUB, mount it at `/boot/efi`
+and use the separate ext4 `/boot`. Root snapshots then do not modify the kernel
+or bootloader files.
 
-`archinstall` can set this layout up automatically during installation.
+See [`guides/archinstall.md`](guides/archinstall.md) for the complete Arch
+installation procedure, or
+[`guides/encrypted-installation.md`](guides/encrypted-installation.md) for
+other distributions.
 
 ---
 
@@ -143,190 +199,12 @@ Or select a snapshot from the boot menu at startup.
 
 ## Bootloader recovery
 
-Snapshots protect your system state. They do **not** protect against the bootloader itself getting corrupted. If GRUB, systemd-boot, or Limine breaks, you won't reach the boot menu at all — the fix is a live USB.
+Snapshots do not protect the bootloader itself. Keep current live media and
+the storage backups described in the installation guide.
 
-Keep a live USB of your distro on your desk. Every recovery below takes under 10 minutes.
-
----
-
-### Step 1 — boot and mount (all bootloaders)
-
-Boot your distro's live USB, open a terminal, then mount your partitions:
-
-```bash
-# Find your partitions
-lsblk
-
-# Mount the Btrfs root subvolume
-mount -o subvol=@ /dev/nvme0n1p3 /mnt
-
-# Mount the separate /boot and EFI partitions
-mount /dev/nvme0n1p2 /mnt/boot
-mount /dev/nvme0n1p1 /mnt/boot/efi
-
-# Chroot into your system
-arch-chroot /mnt        # Arch / CachyOS / EndeavourOS
-# or
-chroot /mnt             # Fedora / Ubuntu / Debian
-```
-
-> Replace `/dev/nvme0n1p1/2/3` with your actual partition names from `lsblk`.
-> If you followed the recommended layout, p1 = EFI, p2 = /boot, p3 = Btrfs root.
-
----
-
-### GRUB recovery
-
-**Reinstall GRUB and regenerate config:**
-
-```bash
-# Arch / CachyOS / EndeavourOS
-grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GRUB
-grub-mkconfig -o /boot/grub/grub.cfg
-
-# Fedora
-grub2-install --target=x86_64-efi --efi-directory=/boot/efi
-grub2-mkconfig -o /boot/grub2/grub.cfg
-
-# Ubuntu / Debian
-grub-install --target=x86_64-efi --efi-directory=/boot/efi
-update-grub
-```
-
-**If only the config is broken** (GRUB loads but fails to find entries):
-
-```bash
-# Arch
-grub-mkconfig -o /boot/grub/grub.cfg
-
-# Fedora
-grub2-mkconfig -o /boot/grub2/grub.cfg
-
-# Ubuntu / Debian
-update-grub
-```
-
-**If GRUB loads but drops to a rescue shell**, you can boot manually from there:
-
-```
-# In the GRUB rescue shell — find your root partition
-ls
-ls (hd0,gpt3)/          # look for @ subvolume
-set root=(hd0,gpt3)
-set prefix=(hd0,gpt3)/@/boot/grub
-insmod normal
-normal
-```
-
----
-
-### systemd-boot recovery
-
-systemd-boot is simpler than GRUB — the EFI binary is small and reinstalling it is one command:
-
-```bash
-# Reinstall the systemd-boot EFI binary
-bootctl install
-
-# Verify it's working
-bootctl status
-```
-
-**If boot entries are missing** (systemd-boot loads but shows no OS):
-
-```bash
-# List what entries exist
-ls /boot/loader/entries/
-
-# Regenerate entries if using systemd-boot-btrfs
-systemd-boot-btrfs
-
-# Or manually create a minimal entry
-cat > /boot/loader/entries/arch.conf << 'EOF'
-title   Arch Linux
-linux   /vmlinuz-linux
-initrd  /initramfs-linux.img
-options root=LABEL=ROOT rootflags=subvol=@ rw
-EOF
-```
-
-**If the EFI entry is missing from firmware** (machine doesn't try to boot systemd-boot at all):
-
-```bash
-# Re-register the EFI entry
-bootctl install
-
-# Or add it manually with efibootmgr
-efibootmgr --create --disk /dev/nvme0n1 --part 1 \
-    --label "systemd-boot" \
-    --loader /EFI/systemd/systemd-bootx64.efi
-```
-
----
-
-### Limine recovery
-
-```bash
-# Reinstall Limine to the EFI partition
-limine bios-install /dev/nvme0n1        # BIOS/legacy boot
-# or
-limine uefi-install /boot/efi           # UEFI (most modern machines)
-
-# Regenerate Limine config if using limine-snapper-sync
-limine-snapper-sync
-
-# Or verify the config manually
-cat /boot/limine.conf
-```
-
-**If Limine config is missing or corrupt**, the minimal config to get booting again:
-
-```
-TIMEOUT=5
-DEFAULT_ENTRY=1
-
-:Arch Linux
-    PROTOCOL=linux
-    KERNEL_PATH=boot:///vmlinuz-linux
-    MODULE_PATH=boot:///initramfs-linux.img
-    CMDLINE=root=LABEL=ROOT rootflags=subvol=@ rw
-```
-
----
-
-### Booting directly into a snapshot (any bootloader)
-
-If the bootloader works but you need to boot a specific Snapper snapshot without the boot menu integration:
-
-```bash
-# From live USB — list snapshots
-ls /mnt/.snapshots/
-
-# Mount a specific snapshot (e.g. number 42)
-mount -o subvol=@/.snapshots/42/snapshot /dev/nvme0n1p3 /mnt
-
-# Chroot in and fix whatever broke
-arch-chroot /mnt
-```
-
----
-
-### After any recovery — check snapshot boot entries
-
-Once you're back in your system, resync the boot menu entries so snapshots appear again:
-
-```bash
-# GRUB
-sudo grub-mkconfig -o /boot/grub/grub.cfg        # Arch
-sudo grub2-mkconfig -o /boot/grub2/grub.cfg      # Fedora
-sudo update-grub                                   # Ubuntu/Debian
-
-# systemd-boot
-sudo systemd-boot-btrfs
-
-# Limine
-sudo limine-snapper-sync
-```
+See [`guides/bootloader-recovery.md`](guides/bootloader-recovery.md) for the
+complete encrypted-root recovery procedure covering GRUB, systemd-boot,
+Limine, Btrfs, LVM, Secure Boot, and Fedora Atomic systems.
 
 ---
 
@@ -337,7 +215,7 @@ SwayFX is a drop-in fork of Sway that adds rounded corners, blur, and shadows. I
 Run module 10 to set up the login manager and a minimal Sway config before your dotfiles are available:
 
 ```bash
-bash ~/setup/modules/10-sway-config.sh
+bash ~/unix_setup/modules/10-sway-config.sh
 ```
 
 This configures SDDM to auto-launch SwayFX on boot and applies the Flameshot Wayland window rule. Once your dotfiles are applied via module 08, chezmoi will replace the minimal config with your full one.
@@ -364,7 +242,7 @@ rclone config
 Then re-run:
 
 ```bash
-bash ~/setup/setup.sh --only 07
+bash ~/unix_setup/setup.sh --only 07
 ```
 
 ---
@@ -375,16 +253,16 @@ Module 11 cleanly removes a tool — stops its services, uninstalls packages, an
 
 ```bash
 # List available removal profiles
-bash ~/setup/modules/11-remove.sh --list
+bash ~/unix_setup/modules/11-remove.sh --list
 
 # Remove a tool
-bash ~/setup/modules/11-remove.sh sddm
+bash ~/unix_setup/modules/11-remove.sh sddm
 
 # Preview without touching anything
-DRY_RUN=true bash ~/setup/modules/11-remove.sh sddm
+DRY_RUN=true bash ~/unix_setup/modules/11-remove.sh sddm
 ```
 
-Available profiles: `sddm`, `gdm`, `lightdm`, `greetd`, `greetd-tuigreet`, `greetd-regreet`, `nwg-hello`, `snapper`, `timeshift`, `grub-btrfs`, `systemd-boot-btrfs`, `limine-snapper-sync`, `proton-drive`, `ufw`, `firewalld`, `clamav`, `sway`, `swayfx`, `waybar`, `podman`, `distrobox`, `toolbox`.
+Available profiles: `sddm`, `gdm`, `lightdm`, `greetd`, `greetd-tuigreet`, `greetd-regreet`, `nwg-hello`, `snapper`, `timeshift`, `grub-btrfs`, `systemd-boot-btrfs`, `limine-snapper-sync`, `proton-drive`, `ufw`, `firewalld`, `nftables`, `clamav`, `sway`, `swayfx`, `waybar`, `podman`, `distrobox`, `toolbox`.
 
 ### Adding a removal profile
 

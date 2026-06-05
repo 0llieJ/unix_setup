@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# modules/12-hardware.sh — CPU microcode and GPU drivers
+# modules/12-hardware.sh — GPU drivers
 # ==============================================================================
 # OPTIONAL MODULE — not in the default setup.sh run.
 # Run after the main setup (modules 01-09) has completed.
@@ -9,17 +9,7 @@
 #   bash ~/unix_setup/modules/12-hardware.sh
 #   bash ~/unix_setup/setup.sh --only 12
 #
-# What this module does:
-#
-#   1. CPU microcode — installs the correct microcode update package for your
-#                      CPU vendor (Intel or AMD). Microcode patches low-level
-#                      CPU firmware to fix bugs and security vulnerabilities.
-#                      Applied on every boot from the initramfs — not persistent
-#                      to the CPU itself. Always safe to install regardless of
-#                      whether you're having issues.
-#
-#   2. GPU drivers   — detects your GPU vendor and installs the appropriate
-#                      driver stack:
+# Detects your GPU vendor and installs the appropriate driver stack:
 #
 #      Vendor   Driver              Notes
 #      ───────────────────────────────────────────────────────────────────────
@@ -54,92 +44,6 @@ if [[ -z "${SETUP_DIR:-}" ]]; then
     source "$SETUP_DIR/lib/utils.sh"
     detect_all
 fi
-
-# ==============================================================================
-# CPU MICROCODE
-# ==============================================================================
-
-# ------------------------------------------------------------------------------
-# install_microcode
-# Installs the CPU microcode package for the detected vendor and ensures it
-# is loaded early in the boot process via the initramfs.
-#
-# WHY MICROCODE MATTERS:
-# CPUs ship with firmware baked in at manufacture time. Vendors regularly release
-# updates that fix bugs (including Spectre/Meltdown mitigations) and improve
-# stability. The OS applies these patches on every boot from a file in /boot —
-# the CPU itself is not permanently modified. Always safe to install.
-#
-# HOW IT'S LOADED:
-# The microcode image must be the first initrd entry in your bootloader config
-# so it's applied before any other drivers load. grub-mkconfig and mkinitcpio
-# handle this automatically on Arch once the package is installed.
-# ------------------------------------------------------------------------------
-install_microcode() {
-    log_section "CPU microcode (vendor: $CPU_VENDOR)"
-
-    if [[ "$CPU_VENDOR" == "unknown" ]]; then
-        log_warn "Could not detect CPU vendor — skipping microcode install"
-        log_warn "Check /proc/cpuinfo and install intel-ucode or amd-ucode manually"
-        return
-    fi
-
-    case "$DISTRO_FAMILY" in
-        arch)          _microcode_arch   ;;
-        fedora)        _microcode_fedora ;;
-        ubuntu|debian) _microcode_debian ;;
-        *) log_warn "No microcode method for distro: $DISTRO_FAMILY" ;;
-    esac
-}
-
-_microcode_arch() {
-    local pkg
-    case "$CPU_VENDOR" in
-        intel) pkg="intel-ucode" ;;
-        amd)   pkg="amd-ucode"   ;;
-    esac
-
-    if pacman -Q "$pkg" &>/dev/null; then
-        log_info "$pkg already installed"
-    else
-        log_info "Installing $pkg..."
-        run_cmd sudo pacman -S --needed --noconfirm "$pkg"
-    fi
-
-    # Rebuild initramfs so the microcode image is included. mkinitcpio
-    # automatically prepends the microcode initrd when the package is present.
-    log_info "Rebuilding initramfs to include microcode..."
-    run_cmd sudo mkinitcpio -P
-
-    # GRUB: regenerate config so it references the microcode initrd
-    if [[ "$BOOTLOADER" == "grub" ]]; then
-        log_info "Regenerating GRUB config to include microcode initrd..."
-        run_cmd sudo grub-mkconfig -o /boot/grub/grub.cfg
-    fi
-
-    log_success "$pkg installed — will be applied from next boot"
-}
-
-_microcode_fedora() {
-    # microcode_ctl handles both Intel and AMD automatically
-    if rpm -q microcode_ctl &>/dev/null; then
-        log_info "microcode_ctl already installed — updating..."
-        run_cmd sudo dnf upgrade -y microcode_ctl
-    else
-        run_cmd sudo dnf install -y microcode_ctl
-    fi
-    log_success "CPU microcode installed via microcode_ctl"
-}
-
-_microcode_debian() {
-    local pkg
-    case "$CPU_VENDOR" in
-        intel) pkg="intel-microcode" ;;
-        amd)   pkg="amd64-microcode" ;;
-    esac
-    run_cmd sudo apt-get install -y "$pkg"
-    log_success "$pkg installed"
-}
 
 # ==============================================================================
 # GPU DRIVERS
@@ -349,22 +253,16 @@ main() {
     log_section "Module 12: Hardware"
 
     echo ""
-    log_info "CPU vendor : $CPU_VENDOR"
     log_info "GPU vendor : $GPU_VENDOR"
     log_info "Bootloader : $BOOTLOADER"
     echo ""
 
-    # macOS manages all hardware firmware (including CPU microcode and GPU drivers)
-    # through Apple's own update mechanism — System Settings → General → Software Update.
-    # There is nothing to install here on macOS.
+    # macOS manages GPU drivers through Software Update.
     if [[ "$DISTRO_FAMILY" == "macos" ]]; then
         log_info "macOS: hardware firmware managed by Apple Software Update — skipping"
         log_info "Keep your Mac up to date via: System Settings → General → Software Update"
         return 0
     fi
-
-    # Microcode runs automatically — it's always safe and always needed.
-    install_microcode
 
     # GPU drivers are optional — prompted because the correct choice varies
     # by hardware, and getting it wrong (e.g. nvidia-open on a pre-Turing card)

@@ -19,6 +19,7 @@
 #   BOOTLOADER     — grub | systemd-boot | limine | unknown (always unknown on macOS)
 #   CPU_VENDOR     — intel | amd | apple | unknown
 #   GPU_VENDOR     — nvidia | amd | intel | apple | unknown
+#   SYSTEM_PROFILE — atomic | mutable
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
@@ -72,6 +73,21 @@ detect_os() {
     esac
 
     export OS_ID OS_ID_LIKE OS_NAME OS_VERSION DISTRO_FAMILY
+}
+
+# ------------------------------------------------------------------------------
+# detect_system_profile
+# OSTree/rpm-ostree systems should prefer user-level tooling because the base
+# operating system is immutable. Mutable is the default for conventional
+# package-managed installations.
+# ------------------------------------------------------------------------------
+detect_system_profile() {
+    if [[ -e /run/ostree-booted ]]; then
+        SYSTEM_PROFILE="atomic"
+    else
+        SYSTEM_PROFILE="mutable"
+    fi
+    export SYSTEM_PROFILE
 }
 
 # ------------------------------------------------------------------------------
@@ -223,6 +239,7 @@ detect_gpu() {
 # ------------------------------------------------------------------------------
 detect_all() {
     detect_os
+    detect_system_profile
     detect_pkg_manager
     detect_filesystem
     detect_bootloader

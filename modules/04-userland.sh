@@ -32,11 +32,29 @@ PACKAGES_DIR="${SETUP_DIR}/packages"
 # If mise isn't already installed, it's fetched via the official install script
 # from mise.run. The script adds mise to ~/.local/bin.
 #
-# Tool list comes from packages/mise.txt — one `name@version` or `name@latest`
-# per line.
+# Manifest selection, in priority order:
+#   MISE_PACKAGES_FILE, mise-atomic.txt, mise-<distro>.txt, mise.txt
 # ------------------------------------------------------------------------------
 install_mise() {
     log_section "mise (language runtimes + CLI tools)"
+
+    local mise_packages_file
+    if [[ -n "${MISE_PACKAGES_FILE:-}" ]]; then
+        mise_packages_file="$MISE_PACKAGES_FILE"
+    elif [[ "$SYSTEM_PROFILE" == "atomic" && -f "$PACKAGES_DIR/mise-atomic.txt" ]]; then
+        mise_packages_file="$PACKAGES_DIR/mise-atomic.txt"
+    elif [[ -f "$PACKAGES_DIR/mise-${DISTRO_FAMILY}.txt" ]]; then
+        mise_packages_file="$PACKAGES_DIR/mise-${DISTRO_FAMILY}.txt"
+    else
+        mise_packages_file="$PACKAGES_DIR/mise.txt"
+    fi
+
+    if [[ ! -f "$mise_packages_file" ]]; then
+        log_error "mise package manifest not found: $mise_packages_file"
+        return 1
+    fi
+
+    log_info "mise manifest: $mise_packages_file"
 
     # Install mise itself if not already present
     if ! cmd_exists mise; then
@@ -49,21 +67,29 @@ install_mise() {
     # Resolve the mise binary path (it may not be in $PATH yet in a fresh shell)
     local mise_bin
     mise_bin="${HOME}/.local/bin/mise"
-    [[ ! -x "$mise_bin" ]] && mise_bin="$(command -v mise 2>/dev/null || true)"
+    if [[ ! -x "$mise_bin" ]]; then
+        local existing_mise
+        existing_mise="$(command -v mise 2>/dev/null || true)"
+        if [[ -n "$existing_mise" ]]; then
+            mise_bin="$existing_mise"
+        elif [[ "$DRY_RUN" != true ]]; then
+            mise_bin=""
+        fi
+    fi
 
     if [[ -z "$mise_bin" ]]; then
         log_error "mise binary not found after install — check ~/.local/bin is in PATH"
         return 1
     fi
 
-    # Install each tool listed in mise.txt
+    # Install each tool listed in the selected manifest.
     # Format per line: <tool>@<version>  e.g.  python@3.12  or  ripgrep@latest
-    log_info "Installing mise tools from packages/mise.txt..."
+    log_info "Installing mise tools from $(basename "$mise_packages_file")..."
     while IFS= read -r tool; do
         [[ -z "$tool" ]] && continue
         log_info "mise: installing $tool"
         run_cmd "$mise_bin" use --global "$tool"
-    done < <(read_package_list "$PACKAGES_DIR/mise.txt")
+    done < <(read_package_list "$mise_packages_file")
 
     log_success "mise tools installed"
 }
@@ -92,9 +118,9 @@ install_flatpak() {
     fi
 
     # Add Flathub as a remote if it isn't already registered
-    if ! flatpak remotes | grep -q "flathub"; then
+    if ! flatpak remotes --user | grep -q "flathub"; then
         log_info "Adding Flathub remote..."
-        run_cmd sudo flatpak remote-add --if-not-exists flathub \
+        run_cmd flatpak remote-add --user --if-not-exists flathub \
             https://dl.flathub.org/repo/flathub.flatpakrepo
     else
         log_info "Flathub remote already configured"
@@ -113,39 +139,9 @@ install_flatpak() {
         return 0
     }
 
-    run_cmd flatpak install -y --noninteractive flathub "${flatpak_apps[@]}"
+    run_cmd flatpak install --user -y --noninteractive flathub "${flatpak_apps[@]}"
 
-    # Set up a daily auto-update timer so Flatpak apps stay current.
-    # This creates a user-level systemd service+timer rather than running
-    # updates at login, which would slow down session start.
-    log_info "Configuring Flatpak auto-update timer..."
-    if [[ "$DRY_RUN" != true ]]; then
-        mkdir -p ~/.config/systemd/user
-
-        cat > ~/.config/systemd/user/flatpak-update.service << 'EOF'
-[Unit]
-Description=Update Flatpak applications
-
-[Service]
-Type=oneshot
-ExecStart=/usr/bin/flatpak update -y --noninteractive
-EOF
-
-        cat > ~/.config/systemd/user/flatpak-update.timer << 'EOF'
-[Unit]
-Description=Update Flatpak applications daily
-
-[Timer]
-OnCalendar=daily
-Persistent=true
-
-[Install]
-WantedBy=timers.target
-EOF
-
-        systemctl --user daemon-reload
-        systemctl --user enable flatpak-update.timer
-    fi
+    log_info "Flatpak updates are handled by the weekly update timer in module 09"
 
     log_success "Flatpak apps installed"
 }
@@ -185,7 +181,9 @@ install_homebrew() {
     brew_bin="$(command -v brew 2>/dev/null \
         || echo "/home/linuxbrew/.linuxbrew/bin/brew")"
 
-    if [[ ! -x "$brew_bin" ]]; then
+    if [[ ! -x "$brew_bin" && "$DRY_RUN" == true ]]; then
+        log_info "[DRY-RUN] brew is expected at $brew_bin after installation"
+    elif [[ ! -x "$brew_bin" ]]; then
         log_error "brew binary not found after install"
         return 1
     fi

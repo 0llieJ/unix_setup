@@ -117,6 +117,11 @@ _install_devpod() {
 # rather than being an unmanaged binary.
 # ------------------------------------------------------------------------------
 _install_waveterm() {
+    if [[ "$SYSTEM_PROFILE" == "atomic" ]]; then
+        log_warn "Atomic system detected — skipping the native Wave Terminal package"
+        return
+    fi
+
     # Arch uses waveterm-bin from the AUR — nothing to do here
     if [[ "$DISTRO_FAMILY" == "arch" ]]; then
         log_info "Arch detected — Wave Terminal installed via AUR (waveterm-bin), skipping"
@@ -230,6 +235,11 @@ _install_nerd-fonts() {
 # via the native package manager. Works on Arch, Fedora, Ubuntu, and Debian.
 # ------------------------------------------------------------------------------
 _install_netbird() {
+    if [[ "$SYSTEM_PROFILE" == "atomic" ]]; then
+        log_warn "Atomic system detected — skipping NetBird's native package installer"
+        return
+    fi
+
     if cmd_exists netbird; then
         log_info "NetBird already installed at $(command -v netbird)"
         return

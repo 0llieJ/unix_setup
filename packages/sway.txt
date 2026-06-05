@@ -1,15 +1,14 @@
 # ==============================================================================
 # SWAY.TXT - Sway ecosystem packages
 # ==============================================================================
-# Skipped automatically if Sway is already installed (e.g. Fedora Sway Spin).
-# Package names are identical across Fedora, Arch, Ubuntu, and Debian.
+# Re-runs are handled by the native package manager's idempotent install flags.
+# Package names are intended to be shared across supported Linux distros.
 #
-# NOTE: On Arch, sway is replaced by swayfx (AUR) — a drop-in fork that adds
-# rounded corners, blur, and shadows. The swayfx entry in arch-aur.txt takes
-# precedence; this sway entry only installs on non-Arch distros.
+# The compositor entry is commented out because this setup uses swayfx from the
+# AUR on Arch. Other distros should provide sway separately if required.
 # ==============================================================================
 
-sway                    # Tiling Wayland compositor — replaced by swayfx on Arch (see arch-aur.txt)
+# sway                  # Tiling Wayland compositor — using swayfx from arch-aur.txt instead
 waybar                  # Highly customizable Wayland bar
 swaylock                # Screen locker for Sway
 swayidle                # Idle management daemon
@@ -22,13 +21,15 @@ brightnessctl           # Backlight control
 playerctl               # Media player control
 pamixer                 # PulseAudio command line mixer
 thunar                  # File manager
+thunar-volman           # Removable-media handling for Thunar
+tumbler                 # Thumbnail service used by Thunar
 kanshi                  # Dynamic display configuration
 flameshot               # Screenshot tool — requires a window rule in Sway config to work on Wayland:
                         # for_window [app_id="flameshot"] border pixel 0, floating enable, fullscreen disable, move absolute position 0 0
 
 # ------------------------------------------------------------------------------
 # Login manager (greeter) — pick one, uncomment it, comment the rest out
-# Module 09 configures whichever is installed
+# Module 10 configures whichever is installed
 # ------------------------------------------------------------------------------
 sddm                    # Qt-based greeter, most popular for tiling WMs, good Wayland support (recommended)
 # gdm                   # GNOME's greeter — polished but pulls in ~300MB of GNOME dependencies

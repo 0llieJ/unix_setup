@@ -1,4 +1,9 @@
-# Arch Linux — Bare Metal Install Guide
+# Arch Linux — Legacy Separate-Swap Install Guide
+
+> Do not use this layout for a new installation. It keeps swap in a second
+> LUKS container and module 13 must embed its key in the unencrypted initramfs.
+> Follow [`encrypted-installation.md`](encrypted-installation.md) for the
+> preferred single-LUKS, LVM-root-and-swap Archinstall checklist.
 
 Step-by-step archinstall walkthrough for a full bare metal setup with:
 - LUKS2 full disk encryption
@@ -10,6 +15,11 @@ Step-by-step archinstall walkthrough for a full bare metal setup with:
 - NetworkManager
 
 After this guide completes, run `unix_setup` to install everything else.
+
+> For the preferred single-LUKS encrypted-LVM layout, bootloader recovery
+> design, and current hibernation guidance, see
+> [`encrypted-installation.md`](encrypted-installation.md). This older guide
+> documents a separate encrypted swap partition.
 
 ---
 
@@ -38,9 +48,10 @@ and initramfs from `/boot` — so `/boot` must be readable by the firmware.
 Encrypting `/boot` would mean nothing can boot. The rest of the disk
 (swap and root) is fully encrypted.
 
-**Why swap is a separate partition and not a Btrfs swap file:**
-Btrfs swap files do not support hibernation. The kernel cannot resume from
-a Btrfs swap file. A dedicated swap partition is required.
+**Why this walkthrough uses a separate swap partition:**
+Module 13 supports swap partitions and LVM logical volumes directly. Btrfs
+swap files can support hibernation, but need special creation and a correct
+`resume_offset`, which this module intentionally does not manage.
 
 ---
 
@@ -283,14 +294,13 @@ ping archlinux.org
 ## Step 5 — Clone and run unix_setup
 
 ```bash
-git clone git@github.com:0llieJ/unix_setup.git ~/unix_setup
+git clone https://github.com/0llieJ/unix_setup.git ~/unix_setup
 bash ~/unix_setup/setup.sh
 ```
 
-Run the optional modules afterwards:
+Run optional hardware/hibernation modules afterwards:
 ```bash
-bash ~/unix_setup/modules/10-sway-config.sh   # configure SDDM + minimal Sway
-bash ~/unix_setup/modules/12-hardware.sh      # CPU microcode + GPU drivers
+bash ~/unix_setup/modules/12-hardware.sh      # optional GPU drivers
 bash ~/unix_setup/modules/13-hibernate.sh     # configure hibernation (see below)
 ```
 
@@ -334,6 +344,11 @@ filesystem is even mounted) so it can read the hibernation image.
 
 Module 13 sets this up using a **keyfile**:
 
+> This is less secure than placing swap inside the same encrypted LVM
+> container as root. If `/boot` is unencrypted, the initramfs keyfile can be
+> recovered by someone with physical access. Prefer the layout in
+> [`encrypted-installation.md`](encrypted-installation.md).
+
 1. A random keyfile is generated and stored in `/etc/cryptsetup-keys.d/swap.key`
 2. The keyfile is added to the swap partition's LUKS keyslots
    (`cryptsetup luksAddKey`)
@@ -364,12 +379,7 @@ module 13 will warn you. You'll need to reformat the swap partition
 with LUKS — back up anything important first.
 
 **Can't boot after running module 06 (snapper)**
-The `@snapshots` subvolume was likely not created before Snapper ran.
-Boot the live ISO, mount the Btrfs partition, create the subvolume
-manually:
-```bash
-mount /dev/nvme0n1p3 /mnt
-btrfs subvolume create /mnt/@snapshots
-umount /mnt
-```
-Then reboot and re-run module 06.
+Use [`bootloader-recovery.md`](bootloader-recovery.md) to unlock the encrypted
+root, mount the correct Btrfs subvolume, and repair the detected bootloader.
+Do not create or delete subvolumes until the system boots normally and the
+actual cause has been identified.

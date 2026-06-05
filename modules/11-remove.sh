@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# modules/10-remove.sh — Tool removal and cleanup
+# modules/11-remove.sh — Tool removal and cleanup
 # ==============================================================================
 # OPTIONAL MODULE — removes a tool completely: stops and disables its systemd
 # services, uninstalls its packages, and deletes its config files.
@@ -260,6 +260,14 @@ _profile_firewalld() {
         "firewalld"                     \
         ""                              \
         "/etc/firewalld"
+}
+
+_profile_nftables() {
+    do_remove \
+        "nftables"                       \
+        "nftables"                       \
+        ""                               \
+        "/etc/nftables.conf"
 }
 
 # ------------------------------------------------------------------------------

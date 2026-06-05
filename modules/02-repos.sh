@@ -32,13 +32,6 @@ _MODULE_REPOS_LOADED=1
 setup_repos_arch() {
     log_info "Arch: checking AUR helper..."
 
-    # Do a full system upgrade before installing or repairing paru. This ensures
-    # pacman and libalpm are at their latest version before paru-bin is built
-    # against them. Without this, a pacman upgrade later in module 03 bumps
-    # libalpm and breaks paru with "cannot open shared object file: libalpm.so.XX".
-    log_info "Running full system upgrade before building paru..."
-    run_cmd sudo pacman -Syu --noconfirm
-
     if cmd_exists paru; then
         # paru binary exists — check it actually works. A pacman upgrade can
         # bump libalpm to a new version and break paru even though the binary
@@ -245,6 +238,11 @@ https://brave-browser-apt-release.s3.brave.com/ stable main" \
 # ------------------------------------------------------------------------------
 main() {
     log_section "Module 02: Repositories"
+
+    if [[ "$SYSTEM_PROFILE" == "atomic" ]]; then
+        log_info "Atomic system detected — leaving the immutable base repositories unchanged"
+        return 0
+    fi
 
     case "$DISTRO_FAMILY" in
         arch)   setup_repos_arch   ;;

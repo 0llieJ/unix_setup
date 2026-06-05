@@ -140,6 +140,11 @@ CONFLICT_SKIPPED_PKGS=()
 install_system_packages() {
     log_section "System packages"
 
+    if [[ "$SYSTEM_PROFILE" == "atomic" ]]; then
+        log_info "Atomic system detected — native package layering is intentionally skipped"
+        return
+    fi
+
     mapfile -t common_pkgs < <(read_package_list "$PACKAGES_DIR/common.txt")
 
     # macOS uses Homebrew for everything — formulae are installed in 04-userland.sh
@@ -203,6 +208,7 @@ install_system_packages() {
 # sensitive machines.
 # ------------------------------------------------------------------------------
 install_aur_packages() {
+    [[ "$SYSTEM_PROFILE" == "atomic" ]] && return
     [[ "$DISTRO_FAMILY" != "arch" ]] && return  # AUR is Arch-only; macOS/Fedora/etc. skip
 
     log_section "AUR packages"
@@ -244,13 +250,12 @@ install_aur_packages() {
 
 # ------------------------------------------------------------------------------
 # install_sway_packages
-# Installs the Sway Wayland compositor ecosystem. Skipped if sway or swayfx is
-# already installed — allows re-running setup on an existing machine without
-# reinstalling the desktop environment.
+# Installs the Sway Wayland compositor ecosystem. Package-manager idempotency
+# handles re-runs without skipping related desktop packages.
 #
-# On Arch, swayfx (AUR) is installed instead of plain sway — it's a drop-in
-# fork with visual extras (rounded corners, blur, shadows). The sway entry in
-# sway.txt is still installed on non-Arch distros where swayfx isn't packaged.
+# The compositor itself is intentionally omitted from sway.txt. Arch installs
+# swayfx from the AUR; other systems can provide their preferred compositor
+# before running this bootstrap.
 #
 # Sway packages are in a separate file because they're optional — the same
 # setup script should work on a headless server where no desktop is wanted.
@@ -258,9 +263,8 @@ install_aur_packages() {
 install_sway_packages() {
     # Sway is Linux-only — no Wayland compositor on macOS
     [[ "$DISTRO_FAMILY" == "macos" ]] && return
-
-    if cmd_exists sway || cmd_exists swayfx; then
-        log_info "Sway/SwayFX already installed, skipping Sway ecosystem packages"
+    if [[ "$SYSTEM_PROFILE" == "atomic" ]]; then
+        log_info "Atomic system detected — Sway package layering skipped"
         return
     fi
 

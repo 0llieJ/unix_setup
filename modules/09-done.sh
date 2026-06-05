@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# modules/08-done.sh — Final summary
+# modules/09-done.sh — Final summary
 # ==============================================================================
 # Prints a summary of what was set up and any follow-up actions the user needs
 # to take manually (things that can't be automated, like adding SSH keys or
@@ -20,25 +20,32 @@ main() {
     echo ""
 
     log_section "What was configured"
-    echo "  01. Firewall, user groups, sudo feedback, ClamAV"
+    echo "  01. Base system update"
     echo "  02. Third-party repositories (RPM Fusion / AUR / COPRs / Brave)"
-    echo "  03. System packages via $PKG_MANAGER"
+    echo "  03. CPU microcode, system packages, firewall, groups, ClamAV, Podman"
     echo "  04. mise tools, Flatpak apps, Homebrew formulae"
-    echo "  05. Snapper snapshots + $BOOTLOADER boot menu integration"
-    echo "  06. Proton Drive rclone mount (~/ProtonDrive)"
-    echo "  07. Dotfiles applied via chezmoi"
+    echo "  05. GitHub and install-script tools"
+    echo "  06. Snapper snapshots + $BOOTLOADER boot menu integration"
+    echo "  07. Proton Drive rclone mount (~/ProtonDrive)"
+    echo "  08. Dotfiles applied via chezmoi"
+    echo "  09. Weekly system and user application updates"
+    echo "  10. Sway and login-manager configuration"
     echo ""
 
     log_section "Required follow-up actions"
     echo "  • Reboot to apply group membership changes (libvirt, video, input, etc.)"
-    echo "  • If Proton Drive was skipped: run  rclone config  then re-run module 06"
+    echo "  • If Proton Drive was skipped: run  rclone config  then re-run module 07"
     echo "  • Check the log for any warnings:  cat ${LOG_FILE}"
     echo ""
 
     log_section "Useful commands"
     echo "  Snapshot list:   snapper list"
     echo "  Roll back:       sudo snapper rollback <number>"
-    echo "  Update all:      mise upgrade && flatpak update && brew upgrade"
+    echo "  Update mise:     mise upgrade"
+    echo "  Update Flatpak:  flatpak update"
+    echo "  Update Homebrew: brew upgrade"
+    echo "  Update logs:     journalctl -u unix-setup-system-update"
+    echo "                   cat ~/.local/state/unix-setup/weekly-update.log"
     echo "  Reapply dots:    chezmoi apply"
     echo ""
 

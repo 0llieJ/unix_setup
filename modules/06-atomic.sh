@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# modules/05-atomic.sh — System snapshotting and atomic rollback
+# modules/06-atomic.sh — System snapshotting and atomic rollback
 # ==============================================================================
 # Sets up the "atomic" layer of the system: the ability to snapshot the OS
 # state and boot directly into a previous snapshot if something goes wrong.
@@ -53,10 +53,10 @@ _MODULE_ATOMIC_LOADED=1
 # snapshot's state — which may not match the bootloader binary on the EFI
 # partition. This can make the system unbootable after a rollback.
 #
-# The safe layout is:
-#   /boot/efi  → separate FAT32 EFI partition  (bootloader binary lives here)
-#   /boot      → separate ext4 or FAT32 partition  (kernel/initramfs live here)
-#   /          → Btrfs subvolume @  (snapshots capture this only)
+# Safe layouts:
+#   systemd-boot: /boot is the separate FAT32 ESP
+#   GRUB:         /boot is separate ext4 and /boot/efi is the FAT32 ESP
+#   root:         Btrfs subvolume @ (snapshots capture this only)
 #
 # With this layout, rolling back / never touches /boot, so the bootloader
 # always reflects the current kernel state and stays bootable.
@@ -80,9 +80,9 @@ check_boot_partition() {
         log_warn "unbootable if the snapshot kernel doesn't match the EFI binary."
         log_warn ""
         log_warn "Safe layout:"
-        log_warn "  /boot/efi  → separate FAT32 EFI partition"
-        log_warn "  /boot      → separate ext4 partition"
-        log_warn "  /          → Btrfs subvol @ (snapshots capture this only)"
+        log_warn "  systemd-boot: separate FAT32 ESP mounted at /boot"
+        log_warn "  GRUB: separate ext4 /boot plus FAT32 /boot/efi"
+        log_warn "  root: Btrfs subvol @ (snapshots capture this only)"
         log_warn ""
         log_warn "Setup will continue, but fix this during your next reinstall."
         log_warn "archinstall can set this up automatically."
@@ -398,6 +398,11 @@ _setup_limine_snapper() {
 # ------------------------------------------------------------------------------
 main() {
     log_section "Module 06: Atomic (Snapshotting)"
+
+    if [[ "$SYSTEM_PROFILE" == "atomic" ]]; then
+        log_info "OSTree system detected — rollback is managed by image deployments"
+        return 0
+    fi
 
     # Snapshotting is Linux + Btrfs only — macOS uses APFS snapshots via
     # Time Machine, which doesn't need configuring here

@@ -27,6 +27,11 @@ DRY_RUN="${DRY_RUN:-false}"
 # ------------------------------------------------------------------------------
 cmd_exists() { command -v "$1" &>/dev/null; }
 
+# Returns true when systemd is the active init system, not merely installed.
+has_systemd() {
+    cmd_exists systemctl && [[ -d /run/systemd/system ]]
+}
+
 # ------------------------------------------------------------------------------
 # run_cmd <command> [args...]
 # The standard way to run any command that changes system state.
@@ -95,7 +100,7 @@ confirm_packages() {
     local i=0
     for pkg in "${packages[@]}"; do
         printf "    %-30s" "$pkg"
-        (( i++ ))
+        (( ++i ))
         (( i % 4 == 0 )) && echo ""
     done
     # Final newline if the last row wasn't complete
@@ -172,6 +177,10 @@ ask() {
 # ------------------------------------------------------------------------------
 systemd_enable() {
     local unit="$1"
+    if ! has_systemd; then
+        log_warn "systemd is not active, skipping unit: $unit"
+        return 0
+    fi
     if systemctl list-unit-files "$unit" &>/dev/null; then
         run_cmd sudo systemctl enable --now "$unit"
     else
@@ -190,6 +199,10 @@ systemd_enable() {
 # ------------------------------------------------------------------------------
 systemd_enable_user() {
     local unit="$1"
+    if ! has_systemd; then
+        log_warn "systemd is not active, skipping user unit: $unit"
+        return 0
+    fi
     if systemctl --user list-unit-files "$unit" &>/dev/null; then
         run_cmd systemctl --user enable --now "$unit"
     else

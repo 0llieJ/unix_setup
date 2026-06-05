@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# modules/09-sway-config.sh — Sway/SwayFX bootstrap configuration
+# modules/10-sway-config.sh — Sway/SwayFX bootstrap configuration
 # ==============================================================================
-# OPTIONAL MODULE — not run as part of the default setup.sh sequence.
-# Run it manually when you don't have dotfiles yet and need a working desktop:
+# Runs before dotfiles in the default setup sequence. It can also be run alone:
 #
-#   bash setup/modules/09-sway-config.sh
+#   bash setup/modules/10-sway-config.sh
 #   # or via setup.sh:
-#   bash setup/setup.sh --only 09
+#   bash setup/setup.sh --only 10
 #
 # What this module does:
 #
@@ -26,7 +25,7 @@
 #                      Without it the capture window positions itself wrong or
 #                      doesn't appear. Skipped if the rule is already present.
 #
-# Once your dotfiles are applied via module 07 (chezmoi), your real Sway config
+# Once your dotfiles are applied via module 08 (chezmoi), your real Sway config
 # will replace the minimal one written here. The flameshot rule should already
 # be in your dotfiles Sway config at that point — chezmoi apply will overwrite
 # this file entirely.
@@ -219,7 +218,7 @@ EOF
 #
 # If ~/.config/sway/config already exists, this function does nothing.
 # Your real config from chezmoi/dotfiles will replace this file entirely
-# when module 07 runs.
+# when module 08 runs.
 # ------------------------------------------------------------------------------
 create_minimal_sway_config() {
     log_section "Minimal Sway config"
@@ -247,7 +246,7 @@ create_minimal_sway_config() {
         mkdir -p "$SWAY_CONFIG_DIR"
         cat > "$SWAY_CONFIG" << EOF
 # ==============================================================================
-# Minimal Sway config — created by setup/modules/09-sway-config.sh
+# Minimal Sway config — created by setup/modules/10-sway-config.sh
 # Replace this with your real dotfiles via: chezmoi apply
 # ==============================================================================
 
@@ -423,11 +422,13 @@ EOF
 # These are all idempotent — enabling an already-enabled service is a no-op.
 #
 # Services enabled:
+#   NetworkManager — network connectivity and desktop network management
 #   bluetooth  — Bluetooth daemon (required for blueman and BT devices)
 #   pcscd      — PC/SC smart card daemon (required for YubiKey)
 #   libvirtd   — Virtualisation daemon (required for virt-manager / QEMU)
 #   logid      — Logitech device configuration daemon (from logiops-git)
-#   polkit     — Policy kit (privilege escalation for GUI apps)
+#   fstrim     — Weekly SSD discard
+#   power-profiles-daemon — Laptop/desktop power profile management
 #
 # Pipewire is enabled as user services — must run as the current user,
 # not as root, so we use `systemctl --user`.
@@ -435,10 +436,21 @@ EOF
 setup_system_services() {
     log_section "System services"
 
+    systemd_enable NetworkManager.service
     systemd_enable bluetooth
     systemd_enable pcscd
     systemd_enable libvirtd
-    systemd_enable polkit
+    systemd_enable fstrim.timer
+    if [[ "$DISTRO_FAMILY" == "arch" ]]; then
+        systemd_enable paccache.timer
+    fi
+
+    if [[ "$DISTRO_FAMILY" == "fedora" ]]; then
+        systemd_enable tuned.service
+        systemd_enable tuned-ppd.service
+    else
+        systemd_enable power-profiles-daemon.service
+    fi
 
     # logid is only relevant if logiops is installed
     if cmd_exists logid; then
@@ -456,7 +468,85 @@ setup_system_services() {
         log_info "[DRY-RUN] Would enable pipewire, pipewire-pulse, wireplumber user services"
     fi
 
+    setup_desktop_user_services
+
     log_success "System services enabled"
+}
+
+setup_desktop_user_services() {
+    log_info "Configuring desktop user services..."
+
+    if [[ "$DRY_RUN" == true ]]; then
+        log_info "[DRY-RUN] Would configure polkit, keyring, and Flameshot services"
+        return
+    fi
+
+    mkdir -p "${HOME}/.config/systemd/user"
+
+    local polkit_agent=""
+    for candidate in \
+        /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1 \
+        /usr/libexec/polkit-gnome-authentication-agent-1; do
+        if [[ -x "$candidate" ]]; then
+            polkit_agent="$candidate"
+            break
+        fi
+    done
+
+    if [[ -n "$polkit_agent" ]]; then
+        cat > "${HOME}/.config/systemd/user/polkit-agent.service" << EOF
+[Unit]
+Description=Graphical polkit authentication agent
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+ExecStart=${polkit_agent}
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+EOF
+        systemctl --user daemon-reload
+        systemctl --user enable --now polkit-agent.service
+    else
+        log_warn "polkit-gnome authentication agent binary not found"
+    fi
+
+    systemd_enable_user gnome-keyring-daemon.socket
+    systemd_enable_user gcr-ssh-agent.socket
+
+    # Remove the clipboard-history service created by older setup versions.
+    systemctl --user disable --now cliphist.service 2>/dev/null || true
+    rm -f "${HOME}/.config/systemd/user/cliphist.service"
+    systemctl --user daemon-reload
+
+    if cmd_exists flameshot; then
+        local flameshot_bin
+        flameshot_bin="$(command -v flameshot)"
+        cat > "${HOME}/.config/systemd/user/flameshot.service" << EOF
+[Unit]
+Description=Flameshot screenshot daemon
+After=graphical-session.target
+
+[Service]
+ExecStart=${flameshot_bin}
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+EOF
+        systemctl --user daemon-reload
+        systemctl --user enable --now flameshot.service
+    else
+        log_warn "flameshot not found — screenshot daemon autostart skipped"
+    fi
+
+    if cmd_exists xdg-user-dirs-update; then
+        run_cmd xdg-user-dirs-update
+    fi
 }
 
 # ------------------------------------------------------------------------------
@@ -505,6 +595,11 @@ main() {
         return 0
     fi
 
+    if [[ "$SYSTEM_PROFILE" == "atomic" ]] && ! cmd_exists swayfx && ! cmd_exists sway; then
+        log_info "Atomic system has no Sway compositor — skipping Sway configuration"
+        return 0
+    fi
+
     setup_system_services
     setup_user_groups
     setup_login_manager
@@ -517,7 +612,7 @@ main() {
     log_info "Next steps:"
     log_info "  • Re-login or reboot for group changes to take effect"
     log_info "  • Reboot to start greetd and log into SwayFX"
-    log_info "  • Once you have SSH set up, run module 07 to apply your real dotfiles"
+    log_info "  • Once you have SSH set up, run module 08 to apply your real dotfiles"
     log_info "    chezmoi apply will replace the minimal Sway config with your full one"
 }
 
