@@ -257,7 +257,7 @@ _install_netbird() {
 # the --bundle flag, which handles sideloaded .flatpak files.
 # ------------------------------------------------------------------------------
 _install_goose() {
-    if flatpak info io.github.block.Goose &>/dev/null; then
+    if flatpak info --user io.github.block.Goose &>/dev/null; then
         log_info "Goose already installed"
         return
     fi
@@ -288,7 +288,7 @@ _install_goose() {
 
     local url="https://github.com/block/goose/releases/download/v${version}/io.github.block.Goose_stable_${arch}.flatpak"
     run_cmd curl -fsSL -o /tmp/goose.flatpak "$url"
-    run_cmd flatpak install -y --bundle /tmp/goose.flatpak
+    run_cmd flatpak install --user -y --noninteractive --bundle /tmp/goose.flatpak
     run_cmd rm -f /tmp/goose.flatpak
 
     log_success "Goose ${version} installed"

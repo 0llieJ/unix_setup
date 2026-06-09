@@ -232,6 +232,7 @@ setup_sudo_feedback() {
         log_info "[DRY-RUN] Would write $sudoers_file with 'Defaults pwfeedback'"
     else
         echo "Defaults pwfeedback" | sudo tee "$sudoers_file" > /dev/null
+        sudo chmod 0440 "$sudoers_file"
         # Validate the file — visudo -c exits non-zero if the syntax is wrong,
         # which prevents a broken fragment from being left in place.
         if ! sudo visudo -cf "$sudoers_file"; then
