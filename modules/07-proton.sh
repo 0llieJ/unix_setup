@@ -39,6 +39,7 @@ PROTON_REMOTE="proton"
 MOUNT_POINT="${HOME}/ProtonDrive"
 SERVICE_NAME="rclone-proton"
 SERVICE_FILE="${HOME}/.config/systemd/user/${SERVICE_NAME}.service"
+RCLONE_BIN=""
 
 # ------------------------------------------------------------------------------
 # check_rclone
@@ -46,12 +47,24 @@ SERVICE_FILE="${HOME}/.config/systemd/user/${SERVICE_NAME}.service"
 # 04-userland.sh. Returns 1 if missing so the module can exit cleanly.
 # ------------------------------------------------------------------------------
 check_rclone() {
-    if ! cmd_exists rclone; then
+    local candidate
+    for candidate in \
+        "$(command -v rclone 2>/dev/null || true)" \
+        "${HOME}/.local/share/mise/shims/rclone" \
+        "${HOME}/.local/bin/rclone"; do
+        if [[ -n "$candidate" && -x "$candidate" ]]; then
+            RCLONE_BIN="$candidate"
+            break
+        fi
+    done
+
+    if [[ -z "$RCLONE_BIN" ]]; then
         log_error "rclone not found — did module 04-userland.sh run successfully?"
         log_error "Install manually: mise use --global rclone@latest"
         return 1
     fi
-    log_info "rclone found at $(command -v rclone)"
+    export RCLONE_BIN
+    log_info "rclone found at $RCLONE_BIN"
 }
 
 # ------------------------------------------------------------------------------
@@ -61,7 +74,7 @@ check_rclone() {
 # skipped rather than creating a broken service that can't mount anything.
 # ------------------------------------------------------------------------------
 check_remote_configured() {
-    if rclone listremotes 2>/dev/null | grep -q "^${PROTON_REMOTE}:"; then
+    if "$RCLONE_BIN" listremotes 2>/dev/null | grep -q "^${PROTON_REMOTE}:"; then
         log_info "rclone remote '${PROTON_REMOTE}' is configured"
         return 0
     else
@@ -99,15 +112,10 @@ create_mount_point() {
 #   ExecStop      — unmounts cleanly using fusermount3 on logout
 #   Restart=on-failure / RestartSec=10 — auto-restarts if the connection drops
 #
-# PATH in the service includes the mise shims directory so rclone is found
-# even though it wasn't installed via the system package manager.
+# The service uses the resolved absolute rclone path, including the mise shim
+# location when mise is not active in the current shell.
 # ------------------------------------------------------------------------------
 write_systemd_service() {
-    if [[ -f "$SERVICE_FILE" ]]; then
-        log_info "systemd service already exists: $SERVICE_FILE"
-        return
-    fi
-
     log_info "Writing systemd user service: $SERVICE_FILE"
     if [[ "$DRY_RUN" != true ]]; then
         mkdir -p "$(dirname "$SERVICE_FILE")"
@@ -119,10 +127,8 @@ Wants=network-online.target
 
 [Service]
 Type=notify
-# Include mise shims so rclone is found regardless of which shell activated mise
-Environment=PATH=${HOME}/.local/share/mise/shims:/usr/local/bin:/usr/bin:/bin
 ExecStartPre=/bin/mkdir -p ${MOUNT_POINT}
-ExecStart=rclone mount ${PROTON_REMOTE}: ${MOUNT_POINT} \\
+ExecStart=${RCLONE_BIN} mount ${PROTON_REMOTE}: ${MOUNT_POINT} \\
     --vfs-cache-mode writes \\
     --vfs-cache-max-size 2G \\
     --dir-cache-time 72h \\

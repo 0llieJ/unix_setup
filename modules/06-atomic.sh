@@ -381,13 +381,61 @@ _setup_limine_snapper() {
         run_cmd paru -S --needed --noconfirm limine-snapper-sync
     fi
 
-    # Enable the service that watches /.snapshots and updates Limine entries
-    systemd_enable limine-snapper-sync
+    # limine-snapper-sync needs the mounted ESP path. bootctl may not detect it
+    # on Limine systems, so derive it from common mount points when necessary.
+    local esp_path=""
+    if cmd_exists bootctl; then
+        esp_path="$(bootctl --print-esp-path 2>/dev/null | head -1 || true)"
+    fi
+    if [[ -z "$esp_path" ]]; then
+        local candidate
+        for candidate in /boot /efi /boot/efi; do
+            if mountpoint -q "$candidate" \
+                && [[ "$(findmnt -n -o FSTYPE "$candidate" 2>/dev/null)" == "vfat" ]]; then
+                esp_path="$candidate"
+                break
+            fi
+        done
+    fi
+
+    if [[ -z "$esp_path" ]]; then
+        log_error "Could not detect the mounted EFI System Partition"
+        log_error "Set ESP_PATH in /etc/default/limine, then re-run module 06"
+        return 1
+    fi
+
+    log_info "Limine ESP path: $esp_path"
+    if [[ "$DRY_RUN" != true ]]; then
+        sudo install -d -m 0755 /etc/default
+        if [[ -f /etc/default/limine ]] && grep -q '^ESP_PATH=' /etc/default/limine; then
+            sudo sed -i "s|^ESP_PATH=.*|ESP_PATH=${esp_path}|" /etc/default/limine
+        else
+            echo "ESP_PATH=${esp_path}" | sudo tee -a /etc/default/limine > /dev/null
+        fi
+    else
+        log_info "[DRY-RUN] Would set ESP_PATH=$esp_path in /etc/default/limine"
+    fi
 
     # Run once now to sync existing snapshots into the Limine config
-    if [[ "$DRY_RUN" != true ]]; then
-        log_info "Running initial limine-snapper-sync..."
-        sudo limine-snapper-sync || log_warn "Initial sync failed (no snapshots yet?)"
+    log_info "Running initial limine-snapper-sync..."
+    if ! run_cmd sudo limine-snapper-sync; then
+        log_error "Initial limine-snapper-sync failed; service was not enabled"
+        return 1
+    fi
+
+    # Enable the service only after a successful initial synchronization.
+    if [[ "$DRY_RUN" == true ]]; then
+        log_info "[DRY-RUN] Would enable limine-snapper-sync.service"
+    elif has_systemd; then
+        sudo systemctl daemon-reload
+        if ! systemctl list-unit-files limine-snapper-sync.service &>/dev/null; then
+            log_error "limine-snapper-sync.service was not installed by the package"
+            return 1
+        fi
+        sudo systemctl enable --now limine-snapper-sync.service
+    else
+        log_error "systemd is not active; automatic Limine snapshot sync is unavailable"
+        return 1
     fi
 
     log_success "limine-snapper-sync configured — snapshots appear in Limine menu"

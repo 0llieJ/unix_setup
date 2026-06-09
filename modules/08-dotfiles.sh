@@ -6,8 +6,8 @@
 # them to the home directory.
 #
 # Two steps:
-#   1. SSH key — if no SSH key exists, one is generated and the public key is
-#                shown so it can be added to GitHub/Gitea before the next step.
+#   1. SSH key — if no SSH key exists, offers to generate one and shows the
+#                public key so it can be added to GitHub before the next step.
 #   2. chezmoi — initialises the dotfiles repo (via SSH) and applies it.
 #                chezmoi manages files in $HOME in a declarative way, handling
 #                templates, encrypted secrets, and machine-specific overrides.
@@ -33,9 +33,8 @@ CHEZMOI_SOURCE="${HOME}/.local/share/chezmoi"
 
 # ------------------------------------------------------------------------------
 # setup_ssh_key
-# Checks for an existing SSH key. If none is found, generates an ed25519 key
-# (smaller and faster than RSA, recommended for new keys) and prints the public
-# key so it can be manually added to GitHub.
+# Checks for an existing SSH key. If none is found, asks whether to generate an
+# ed25519 key and prints the public key so it can be manually added to GitHub.
 #
 # If a key already exists, the existing public key is shown so you can verify
 # it's already authorised on GitHub before the dotfiles clone step.
@@ -52,15 +51,26 @@ setup_ssh_key() {
     if [[ -f "$key_file" ]]; then
         log_info "SSH key already exists: $key_file"
     else
-        log_info "No SSH key found — generating ed25519 key..."
+        log_info "No SSH key found."
+        if [[ "$DRY_RUN" != true ]] && ! ask "Generate a new ed25519 SSH key?" n; then
+            log_warn "SSH key generation skipped"
+            log_warn "Dotfiles use an SSH repository, so module 08 cannot continue yet"
+            log_warn "Generate or import a key, then re-run: bash ${SETUP_DIR}/setup.sh --only 08"
+            return 1
+        fi
+
+        log_info "Generating ed25519 key..."
         if [[ "$DRY_RUN" != true ]]; then
             mkdir -p "${HOME}/.ssh"
             chmod 700 "${HOME}/.ssh"
+            local host_name
+            host_name="$(cat /etc/hostname 2>/dev/null || uname -n 2>/dev/null || true)"
+            host_name="${host_name:-localhost}"
             # -N "" = no passphrase (for automated setups; add one manually if preferred)
             # -C   = comment shown in the public key — set to user@hostname for clarity
-            ssh-keygen -t ed25519 -C "${USER}@$(hostname)" -f "$key_file" -N ""
+            ssh-keygen -t ed25519 -C "${USER}@${host_name}" -f "$key_file" -N ""
         else
-            log_info "[DRY-RUN] Would generate SSH key at $key_file"
+            log_info "[DRY-RUN] Would ask whether to generate an SSH key at $key_file"
             return
         fi
     fi

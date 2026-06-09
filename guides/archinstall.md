@@ -224,7 +224,7 @@ The setup will:
 5. Permit SSH and LocalSend TCP port `53317`.
 6. Install and configure SwayFX and SDDM.
 7. Install user tools through mise without npm.
-8. Create a GitHub SSH key and apply the chezmoi dotfiles.
+8. Optionally create a GitHub SSH key and apply the chezmoi dotfiles.
 9. Configure Btrfs snapshots and boot-menu integration.
 
 The run contains interactive package, firewall, and SSH-key prompts. Do not
