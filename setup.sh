@@ -182,7 +182,11 @@ run_module "$SETUP_DIR/modules/10-sway-config.sh"
 run_module "$SETUP_DIR/modules/04-userland.sh"
 run_module "$SETUP_DIR/modules/05-github.sh"
 run_module "$SETUP_DIR/modules/06-atomic.sh"
-run_module "$SETUP_DIR/modules/07-proton.sh"
+# 07-proton.sh (rclone Proton Drive mount) is opt-in — rclone's protondrive
+# backend is unofficial and reliability varies. Proton Mail/Drive are provided
+# as web apps via module 14 instead. Run the mount manually if you want it:
+#   bash setup.sh --only 07
+# run_module "$SETUP_DIR/modules/07-proton.sh"
 run_module "$SETUP_DIR/modules/08-dotfiles.sh"
 run_module "$SETUP_DIR/modules/09-updates.sh"
 run_module "$SETUP_DIR/modules/14-webapps.sh"

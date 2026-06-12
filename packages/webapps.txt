@@ -8,5 +8,7 @@
 # Add more any time with:  webapp add "Name" https://url
 # ==============================================================================
 
-Medium    | https://medium.com
-Substack  | https://substack.com
+Medium       | https://medium.com
+Substack     | https://substack.com
+Proton Mail  | https://mail.proton.me
+Proton Drive | https://drive.proton.me
