@@ -6,6 +6,10 @@
 # a site in a Chromium "app window" (--app=URL), so sites like Medium or
 # Substack behave like standalone apps and show up in rofi / your launcher.
 #
+# Each web app runs in its own browser profile under ~/.local/share/webapps/<slug>
+# (via --user-data-dir), so its login/cookies are isolated from regular browsing
+# and from other web apps. `webapp remove` deletes that profile too.
+#
 # Browser preference: Helium → Brave → Chromium → Chrome (native, then Flatpak).
 # Both Helium and Brave are Chromium-based and support --app.
 #
@@ -17,6 +21,9 @@
 set -euo pipefail
 
 APP_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+# Each web app gets its own browser profile under here so its cookies, sessions
+# and saved logins are isolated from regular browsing and from other web apps.
+PROFILE_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/webapps"
 
 # ------------------------------------------------------------------------------
 # pick_browser — print the command for the first available Chromium-based browser
@@ -59,7 +66,7 @@ cmd_add() {
     fi
     [[ "$url" =~ ^https?:// ]] || url="https://$url"
 
-    local browser slug desktop class
+    local browser slug desktop class profile
     if ! browser="$(pick_browser)"; then
         echo "webapp: no Chromium-based browser found (helium/brave/chromium/chrome)." >&2
         echo "        Install one (e.g. helium-browser-bin or brave-bin) and retry." >&2
@@ -68,15 +75,18 @@ cmd_add() {
     slug="$(slugify "$name")"
     class="webapp-${slug}"
     desktop="${APP_DIR}/webapp-${slug}.desktop"
+    # Dedicated browser profile for this web app — keeps its login/cookies
+    # isolated from regular browsing and from other web apps.
+    profile="${PROFILE_ROOT}/${slug}"
 
-    mkdir -p "$APP_DIR"
+    mkdir -p "$APP_DIR" "$profile"
     cat > "$desktop" << EOF
 [Desktop Entry]
 Version=1.0
 Type=Application
 Name=${name}
 Comment=Web app: ${url}
-Exec=${browser} --app=${url} --class=${class} --name=${class}
+Exec=${browser} --user-data-dir=${profile} --app=${url} --class=${class} --name=${class}
 Icon=web-browser
 Terminal=false
 Categories=Network;WebBrowser;
@@ -91,12 +101,17 @@ EOF
 cmd_remove() {
     local name="${1:-}"
     [[ -n "$name" ]] || { echo "usage: webapp remove <Name>" >&2; exit 1; }
-    local slug desktop
+    local slug desktop profile
     slug="$(slugify "$name")"
     desktop="${APP_DIR}/webapp-${slug}.desktop"
+    profile="${PROFILE_ROOT}/${slug}"
     if [[ -f "$desktop" ]]; then
         rm -f "$desktop"
         echo "Removed ${desktop}"
+        if [[ -d "$profile" ]]; then
+            rm -rf "$profile"
+            echo "Removed profile ${profile} (cached login/cookies for this web app)"
+        fi
     else
         echo "webapp: no launcher found for '${name}' (${desktop})" >&2
         exit 1
