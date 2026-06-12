@@ -298,7 +298,12 @@ apply_vm_renderer_fix() {
     local envf="/etc/environment"
     # WLR_RENDERER=pixman        — use the CPU software renderer, skip EGL/DRI
     # WLR_NO_HARDWARE_CURSORS=1  — VMs often lack hardware cursor planes
-    local vars=("WLR_RENDERER=pixman" "WLR_NO_HARDWARE_CURSORS=1")
+    # QT_QUICK_BACKEND=software  — force Qt Quick's software renderer. Without it
+    #                              Qt/Quickshell apps (Noctalia) try the GPU dmabuf
+    #                              path, which fails in a VM with "importing the
+    #                              supplied dmabufs failed" → Wayland protocol error
+    #                              and the shell crashes on launch.
+    local vars=("WLR_RENDERER=pixman" "WLR_NO_HARDWARE_CURSORS=1" "QT_QUICK_BACKEND=software")
 
     if [[ "$DRY_RUN" == true ]]; then
         log_info "[DRY-RUN] Would ensure ${vars[*]} in $envf"
