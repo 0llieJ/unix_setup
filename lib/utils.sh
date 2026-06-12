@@ -276,3 +276,51 @@ systemd_enable_user() {
         log_warn "systemd user unit not found, skipping: $unit"
     fi
 }
+
+# ------------------------------------------------------------------------------
+# ensure_local_bin_on_path
+# Several tools install user binaries into ~/.local/bin (mise, Claude Code,
+# the webapp/update helpers). On a fresh system that directory often isn't on
+# PATH yet, so those commands appear "not found" until the user fixes it by
+# hand. This adds an idempotent PATH export to the shell rc files that exist
+# (~/.bashrc, ~/.zshrc, ~/.profile) so the directory is on PATH for every new
+# shell, and exports it into the current process so the rest of the run can
+# already find freshly-installed tools.
+#
+# A marker comment makes it idempotent — re-running won't duplicate the block.
+# It only appends; it never rewrites existing PATH handling. Your dotfiles
+# (chezmoi, module 08) may manage PATH themselves and can overwrite these
+# files later — that's fine, this is just the fresh-system safety net.
+# ------------------------------------------------------------------------------
+ensure_local_bin_on_path() {
+    local local_bin="${HOME}/.local/bin"
+    local marker="# Added by unix_setup: ensure ~/.local/bin is on PATH"
+    local line='case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) export PATH="$HOME/.local/bin:$PATH" ;; esac'
+
+    # Make it available immediately for the rest of this run.
+    case ":$PATH:" in
+        *":${local_bin}:"*) ;;
+        *) export PATH="${local_bin}:$PATH" ;;
+    esac
+
+    if [[ "$DRY_RUN" == true ]]; then
+        log_info "[DRY-RUN] Would ensure ~/.local/bin is on PATH in shell rc files"
+        return 0
+    fi
+
+    local rc updated=0
+    for rc in "${HOME}/.bashrc" "${HOME}/.zshrc" "${HOME}/.profile"; do
+        # Only touch rc files that already exist, except .profile which we create
+        # as a portable fallback so login shells get it too.
+        [[ -f "$rc" ]] || [[ "$rc" == "${HOME}/.profile" ]] || continue
+        if [[ -f "$rc" ]] && grep -qF "$marker" "$rc"; then
+            continue
+        fi
+        printf '\n%s\n%s\n' "$marker" "$line" >> "$rc"
+        log_info "Added ~/.local/bin to PATH in $(basename "$rc")"
+        updated=1
+    done
+
+    [[ "$updated" == 1 ]] && log_success "~/.local/bin will be on PATH in new shells (run: source ~/.bashrc)"
+    return 0
+}

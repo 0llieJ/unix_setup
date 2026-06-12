@@ -252,6 +252,10 @@ install_macos_casks() {
 main() {
     log_section "Module 04: Userland"
 
+    # Make sure ~/.local/bin is on PATH before installing tools that land there
+    # (mise here, Claude Code in module 05) so they're usable without a manual fix.
+    ensure_local_bin_on_path
+
     install_mise
     install_flatpak
     install_homebrew
