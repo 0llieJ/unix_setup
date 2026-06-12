@@ -246,8 +246,10 @@ After logging in, check:
 
 ```bash
 systemctl --failed
+systemctl get-default
 systemctl status NetworkManager bluetooth --no-pager
 systemctl status sddm --no-pager
+ls -l /usr/share/wayland-sessions/
 systemctl --user status pipewire wireplumber --no-pager
 systemctl --user status podman.socket --no-pager
 systemctl --user status flameshot --no-pager
@@ -256,6 +258,27 @@ systemctl --user list-timers unix-setup-user-update.timer
 snapper list
 swapon --show
 ```
+
+If the machine boots to a TTY instead of SDDM, log in and repair the graphical
+boot configuration with:
+
+```bash
+cd ~/unix_setup
+bash setup.sh --only 10
+sudo systemctl set-default graphical.target
+sudo systemctl enable --now sddm.service
+```
+
+Then inspect any remaining failure:
+
+```bash
+systemctl status sddm.service --no-pager -l
+journalctl -u sddm.service -b --no-pager
+ls -l /usr/share/wayland-sessions/
+```
+
+Sway does not start independently at boot. SDDM starts first, then launches
+SwayFX after the user selects that session and logs in.
 
 Check the selected firewall:
 

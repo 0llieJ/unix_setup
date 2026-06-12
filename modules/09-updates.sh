@@ -228,10 +228,33 @@ EOF
     log_warn "AUR packages remain manual: paru -Sua"
 }
 
+# ------------------------------------------------------------------------------
+# install_update_all
+# Installs the on-demand `update-all` command to ~/.local/bin. It updates every
+# package manager in dependency order (system → AUR → Flatpak → mise → Homebrew),
+# complementing the unattended weekly timers above.
+# ------------------------------------------------------------------------------
+install_update_all() {
+    log_section "update-all command"
+
+    local src="${SETUP_DIR}/bin/update-all"
+    local dst="${HOME}/.local/bin/update-all"
+
+    if [[ ! -f "$src" ]]; then
+        log_warn "update-all script not found at $src — skipping"
+        return
+    fi
+
+    run_cmd install -D -m 0755 "$src" "$dst"
+    log_success "Installed update-all → $dst"
+    log_info "Run it any time to update everything in order:  update-all"
+}
+
 main() {
     log_section "Module 09: Automatic updates"
     setup_system_updates
     setup_user_updates
+    install_update_all
     log_success "Weekly update timers configured"
 }
 

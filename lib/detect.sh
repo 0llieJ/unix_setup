@@ -20,6 +20,8 @@
 #   CPU_VENDOR     — intel | amd | apple | unknown
 #   GPU_VENDOR     — nvidia | amd | intel | apple | unknown
 #   SYSTEM_PROFILE — atomic | mutable
+#   IS_VM          — yes | no  (running inside a virtual machine)
+#   VIRT_TYPE      — kvm | vmware | oracle | microsoft | none | ...
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
@@ -235,6 +237,54 @@ detect_gpu() {
 }
 
 # ------------------------------------------------------------------------------
+# detect_virt
+# Detects whether we're running inside a virtual machine and, if so, which
+# hypervisor. This matters for the desktop: wlroots compositors (Sway/SwayFX)
+# fail to start in VMs without 3D acceleration because EGL/DRI can't initialise
+# (see "Failed to create renderer"). Module 10 uses IS_VM to force the pixman
+# software renderer in that case.
+#
+# Uses systemd-detect-virt where available (most reliable). Falls back to DMI
+# product strings and a CPU hypervisor flag check on systems without it.
+# ------------------------------------------------------------------------------
+detect_virt() {
+    IS_VM="no"
+    VIRT_TYPE="none"
+
+    # macOS detection isn't needed — Sway doesn't run there.
+    if [[ "$DISTRO_FAMILY" == "macos" ]]; then
+        export IS_VM VIRT_TYPE
+        return
+    fi
+
+    if command -v systemd-detect-virt &>/dev/null; then
+        local v
+        v="$(systemd-detect-virt --vm 2>/dev/null || true)"
+        if [[ -n "$v" && "$v" != "none" ]]; then
+            IS_VM="yes"
+            VIRT_TYPE="$v"
+        fi
+    fi
+
+    # Fallback: inspect DMI product name and the CPU hypervisor flag.
+    if [[ "$IS_VM" == "no" ]]; then
+        local product=""
+        [[ -r /sys/class/dmi/id/product_name ]] && product="$(cat /sys/class/dmi/id/product_name 2>/dev/null)"
+        case "$product" in
+            *VMware*)        IS_VM="yes"; VIRT_TYPE="vmware" ;;
+            *VirtualBox*)    IS_VM="yes"; VIRT_TYPE="oracle" ;;
+            *KVM*|*QEMU*)    IS_VM="yes"; VIRT_TYPE="kvm" ;;
+            *Virtual\ Machine*) IS_VM="yes"; VIRT_TYPE="microsoft" ;;
+        esac
+        if [[ "$IS_VM" == "no" ]] && grep -qm1 '^flags.*\bhypervisor\b' /proc/cpuinfo 2>/dev/null; then
+            IS_VM="yes"; VIRT_TYPE="unknown"
+        fi
+    fi
+
+    export IS_VM VIRT_TYPE
+}
+
+# ------------------------------------------------------------------------------
 # detect_all — convenience wrapper that runs every detection function in order.
 # ------------------------------------------------------------------------------
 detect_all() {
@@ -245,4 +295,5 @@ detect_all() {
     detect_bootloader
     detect_cpu
     detect_gpu
+    detect_virt
 }

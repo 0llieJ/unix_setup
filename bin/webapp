@@ -1,0 +1,126 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# webapp — create/remove Chromium-based web-app launchers for your app menu
+# ==============================================================================
+# Generates ~/.local/share/applications/webapp-<slug>.desktop entries that open
+# a site in a Chromium "app window" (--app=URL), so sites like Medium or
+# Substack behave like standalone apps and show up in rofi / your launcher.
+#
+# Browser preference: Helium → Brave → Chromium → Chrome (native, then Flatpak).
+# Both Helium and Brave are Chromium-based and support --app.
+#
+# Usage:
+#   webapp add  "Medium" https://medium.com
+#   webapp remove "Medium"
+#   webapp list
+# ==============================================================================
+set -euo pipefail
+
+APP_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+
+# ------------------------------------------------------------------------------
+# pick_browser — print the command for the first available Chromium-based browser
+# ------------------------------------------------------------------------------
+pick_browser() {
+    local b
+    for b in helium helium-browser brave brave-browser chromium chromium-browser \
+             google-chrome-stable google-chrome; do
+        if command -v "$b" >/dev/null 2>&1; then
+            echo "$b"
+            return 0
+        fi
+    done
+    # Flatpak fallbacks
+    if command -v flatpak >/dev/null 2>&1; then
+        local id
+        for id in net.imput.helium com.brave.Browser org.chromium.Chromium; do
+            if flatpak info "$id" >/dev/null 2>&1; then
+                echo "flatpak run $id"
+                return 0
+            fi
+        done
+    fi
+    return 1
+}
+
+# ------------------------------------------------------------------------------
+# slugify — turn "My App!" into "my-app" for filenames and window classes
+# ------------------------------------------------------------------------------
+slugify() {
+    echo "$1" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' \
+        | sed 's/^-*//; s/-*$//'
+}
+
+cmd_add() {
+    local name="${1:-}" url="${2:-}"
+    if [[ -z "$name" || -z "$url" ]]; then
+        echo "usage: webapp add <Name> <URL>" >&2
+        exit 1
+    fi
+    [[ "$url" =~ ^https?:// ]] || url="https://$url"
+
+    local browser slug desktop class
+    if ! browser="$(pick_browser)"; then
+        echo "webapp: no Chromium-based browser found (helium/brave/chromium/chrome)." >&2
+        echo "        Install one (e.g. helium-browser-bin or brave-bin) and retry." >&2
+        exit 1
+    fi
+    slug="$(slugify "$name")"
+    class="webapp-${slug}"
+    desktop="${APP_DIR}/webapp-${slug}.desktop"
+
+    mkdir -p "$APP_DIR"
+    cat > "$desktop" << EOF
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=${name}
+Comment=Web app: ${url}
+Exec=${browser} --app=${url} --class=${class} --name=${class}
+Icon=web-browser
+Terminal=false
+Categories=Network;WebBrowser;
+StartupWMClass=${class}
+EOF
+
+    command -v update-desktop-database >/dev/null 2>&1 \
+        && update-desktop-database "$APP_DIR" >/dev/null 2>&1 || true
+    echo "Created ${desktop}  (browser: ${browser})"
+}
+
+cmd_remove() {
+    local name="${1:-}"
+    [[ -n "$name" ]] || { echo "usage: webapp remove <Name>" >&2; exit 1; }
+    local slug desktop
+    slug="$(slugify "$name")"
+    desktop="${APP_DIR}/webapp-${slug}.desktop"
+    if [[ -f "$desktop" ]]; then
+        rm -f "$desktop"
+        echo "Removed ${desktop}"
+    else
+        echo "webapp: no launcher found for '${name}' (${desktop})" >&2
+        exit 1
+    fi
+}
+
+cmd_list() {
+    local found=0 f
+    for f in "$APP_DIR"/webapp-*.desktop; do
+        [[ -e "$f" ]] || continue
+        found=1
+        printf '  %-24s %s\n' \
+            "$(sed -n 's/^Name=//p' "$f")" \
+            "$(sed -n 's/^Comment=Web app: //p' "$f")"
+    done
+    [[ "$found" == 0 ]] && echo "  (no web apps yet — add one with: webapp add \"Name\" https://url)"
+}
+
+case "${1:-}" in
+    add)    shift; cmd_add "$@" ;;
+    remove|rm) shift; cmd_remove "$@" ;;
+    list|ls) cmd_list ;;
+    *)
+        echo "usage: webapp {add <Name> <URL> | remove <Name> | list}" >&2
+        exit 1
+        ;;
+esac

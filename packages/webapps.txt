@@ -1,0 +1,12 @@
+# ==============================================================================
+# webapps.txt — web apps to add to your launcher as Chromium --app windows
+# ==============================================================================
+# Module 14-webapps.sh reads this file and runs `webapp add` for each entry, so
+# the sites appear in rofi / your launcher as standalone apps.
+#
+# Format: Name | https://url        (one per line, '#' for comments)
+# Add more any time with:  webapp add "Name" https://url
+# ==============================================================================
+
+Medium    | https://medium.com
+Substack  | https://substack.com

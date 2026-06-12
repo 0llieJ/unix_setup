@@ -23,9 +23,18 @@ waveterm-bin            # Wave Terminal — block-based terminal with built-in A
                         # Non-Arch installs handled by modules/05-github.sh
 
 # ------------------------------------------------------------------------------
+# DESKTOP SHELL (Noctalia)
+# ------------------------------------------------------------------------------
+noctalia-shell          # Noctalia desktop shell — bar, launcher, notifications. Pulls in its
+                        # Quickshell runtime (noctalia-qs) as a dependency. Autostarted by module
+                        # 10 via `exec noctalia-qs -c noctalia-shell` in the Sway config.
+
+# ------------------------------------------------------------------------------
 # WEB BROWSERS
 # ------------------------------------------------------------------------------
-helium-browser-bin      # Helium browser
+helium-browser-bin      # Helium browser — Chromium-based, used for web-app (--app) launchers
+# brave-bin             # Brave browser — Chromium-based (optional). Uncomment to install;
+                        # the webapp generator will use Helium by default either way.
 
 # ------------------------------------------------------------------------------
 # TERMINAL ENTERTAINMENT

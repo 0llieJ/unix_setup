@@ -17,6 +17,28 @@
 DRY_RUN="${DRY_RUN:-false}"
 
 # ------------------------------------------------------------------------------
+# FAILED_PKG_FILE
+# Packages that fail to install are appended here so the run can carry on and
+# you can install them manually afterwards. One record per line:
+#   <iso-timestamp>\t<package-manager>\t<package>\t<reason>
+# Override before sourcing if you want it somewhere else.
+# ------------------------------------------------------------------------------
+FAILED_PKG_FILE="${FAILED_PKG_FILE:-${HOME}/failed-packages.txt}"
+
+# ------------------------------------------------------------------------------
+# record_failed_pkg <manager> <package> [reason]
+# Appends a failed package to FAILED_PKG_FILE so it isn't lost when the setup
+# continues past it. Safe to call repeatedly — it just appends.
+# ------------------------------------------------------------------------------
+record_failed_pkg() {
+    local manager="$1" pkg="$2" reason="${3:-install failed}"
+    local stamp
+    stamp="$(date --iso-8601=seconds 2>/dev/null || date 2>/dev/null || echo unknown)"
+    printf '%s\t%s\t%s\t%s\n' "$stamp" "$manager" "$pkg" "$reason" >> "$FAILED_PKG_FILE"
+    log_warn "Recorded failed package '$pkg' → $FAILED_PKG_FILE"
+}
+
+# ------------------------------------------------------------------------------
 # cmd_exists <command>
 # Returns 0 (true) if the command is available in $PATH, 1 otherwise.
 # Used throughout modules to check whether something is already installed
@@ -127,25 +149,70 @@ confirm_packages() {
 # Example:
 #   pkg_install git curl rsync
 # ------------------------------------------------------------------------------
+# _pkg_install_cmd <package...>
+# Runs the detected package manager for the given packages and returns its exit
+# status. Used for both the fast batch attempt and the per-package retry below.
+# -u (pacman) upgrades out-of-date deps pulled in alongside new packages,
+# preventing partial upgrades that break AUR tools like paru when libalpm gets
+# bumped as a transitive dependency mid-setup.
+_pkg_install_cmd() {
+    case "$PKG_MANAGER" in
+        pacman) run_cmd sudo pacman -Syu --needed --noconfirm "$@" ;;
+        dnf)    run_cmd sudo dnf install -y "$@" ;;
+        apt)    run_cmd sudo apt-get install -y "$@" ;;
+        brew)   run_cmd brew install "$@" ;;
+        *)      log_error "Unknown package manager: $PKG_MANAGER"; return 1 ;;
+    esac
+}
+
 pkg_install() {
     local packages=("$@")
-    [[ ${#packages[@]} -eq 0 ]] && return
+    [[ ${#packages[@]} -eq 0 ]] && return 0
+
+    # Atomic/OSTree systems have a read-only /usr — native package managers
+    # (dnf/apt/pacman) can't install into the running system. Layering must go
+    # through `rpm-ostree install` instead, which is intentionally out of scope
+    # here. Skip and record so the caller carries on rather than erroring.
+    if [[ "${SYSTEM_PROFILE:-mutable}" == "atomic" ]]; then
+        log_warn "Atomic system — cannot install ${packages[*]} via $PKG_MANAGER (read-only base)"
+        log_warn "Layer it manually if needed:  rpm-ostree install ${packages[*]}"
+        local p
+        for p in "${packages[@]}"; do
+            record_failed_pkg "$PKG_MANAGER" "$p" "atomic: layer with rpm-ostree"
+        done
+        return 0
+    fi
 
     confirm_packages "$PKG_MANAGER" "${packages[@]}" || {
         log_warn "Install skipped by user"
         return 0
     }
 
-    case "$PKG_MANAGER" in
-        # -u upgrades any out-of-date deps pulled in alongside new packages,
-        # preventing partial upgrades that break AUR tools like paru when
-        # libalpm gets bumped as a transitive dependency mid-setup.
-        pacman) run_cmd sudo pacman -Syu --needed --noconfirm "${packages[@]}" ;;
-        dnf)    run_cmd sudo dnf install -y "${packages[@]}" ;;
-        apt)    run_cmd sudo apt-get install -y "${packages[@]}" ;;
-        brew)   run_cmd brew install "${packages[@]}" ;;
-        *)      log_error "Unknown package manager: $PKG_MANAGER"; return 1 ;;
-    esac
+    # Fast path: install the whole batch in one transaction.
+    if _pkg_install_cmd "${packages[@]}"; then
+        return 0
+    fi
+
+    # Batch failed — one or more packages is bad (renamed, dropped from repos,
+    # unmet deps). Retry each individually so the good ones still land, and
+    # record only the genuinely failing ones for manual follow-up. Always
+    # return 0 afterwards so the overall setup carries on past failures.
+    log_warn "Batch install failed — retrying packages individually to isolate failures"
+    local pkg failed=()
+    for pkg in "${packages[@]}"; do
+        if _pkg_install_cmd "$pkg"; then
+            log_success "Installed: $pkg"
+        else
+            log_error "Failed to install: $pkg"
+            record_failed_pkg "$PKG_MANAGER" "$pkg"
+            failed+=("$pkg")
+        fi
+    done
+
+    if [[ ${#failed[@]} -gt 0 ]]; then
+        log_warn "${#failed[@]} package(s) failed — see $FAILED_PKG_FILE"
+    fi
+    return 0
 }
 
 # ------------------------------------------------------------------------------

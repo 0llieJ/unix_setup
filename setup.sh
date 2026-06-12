@@ -107,6 +107,11 @@ log_info "Root FS:     $ROOT_FS"
 log_info "Bootloader:  $BOOTLOADER"
 log_info "CPU:         $CPU_VENDOR"
 log_info "GPU:         $GPU_VENDOR"
+if [[ "$IS_VM" == "yes" ]]; then
+    log_info "Virtual machine: yes ($VIRT_TYPE)"
+else
+    log_info "Virtual machine: no"
+fi
 log_info "Dry run:     $DRY_RUN"
 log_info "Log file:    $LOG_FILE"
 echo ""
@@ -180,4 +185,5 @@ run_module "$SETUP_DIR/modules/06-atomic.sh"
 run_module "$SETUP_DIR/modules/07-proton.sh"
 run_module "$SETUP_DIR/modules/08-dotfiles.sh"
 run_module "$SETUP_DIR/modules/09-updates.sh"
+run_module "$SETUP_DIR/modules/14-webapps.sh"
 run_module "$SETUP_DIR/modules/09-done.sh"

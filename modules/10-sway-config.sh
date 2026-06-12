@@ -10,9 +10,9 @@
 #
 # What this module does:
 #
-#   1. greetd — configures /etc/greetd/config.toml to launch swayfx (or sway
-#               on non-Arch distros) via tuigreet, then enables greetd as a
-#               systemd service so it starts on boot instead of a TTY login.
+#   1. Login manager — configures the installed display manager for SwayFX
+#                      (or Sway), enables it, and makes graphical.target the
+#                      default boot target instead of a TTY-only login.
 #
 #   2. Sway config — creates ~/.config/sway/config with a minimal working
 #                    configuration if none exists. This is intentionally bare —
@@ -95,29 +95,98 @@ setup_login_manager() {
         log_warn "Recommended: sddm"
         return 1
     fi
+
+    _set_graphical_boot_target
+}
+
+# ------------------------------------------------------------------------------
+# _ensure_wayland_session <compositor>
+# Some third-party compositor packages install the executable without a matching
+# desktop entry. SDDM and GDM need that entry to offer the session after login.
+# ------------------------------------------------------------------------------
+_ensure_wayland_session() {
+    local compositor="$1"
+    local session_file="/usr/share/wayland-sessions/${compositor}.desktop"
+    local compositor_path
+    compositor_path="$(command -v "$compositor")"
+
+    if [[ -f "$session_file" ]]; then
+        log_info "Wayland session found: $session_file"
+        return 0
+    fi
+
+    log_warn "Wayland session file missing; creating: $session_file"
+    if [[ "$DRY_RUN" == true ]]; then
+        log_info "[DRY-RUN] Would create $session_file for $compositor_path"
+        return 0
+    fi
+
+    sudo mkdir -p /usr/share/wayland-sessions
+    sudo tee "$session_file" > /dev/null << EOF
+[Desktop Entry]
+Name=${compositor^}
+Comment=An i3-compatible Wayland compositor
+Exec=${compositor_path}
+TryExec=${compositor_path}
+Type=Application
+DesktopNames=sway
+EOF
+}
+
+# ------------------------------------------------------------------------------
+# _set_graphical_boot_target
+# Minimal Arch installations commonly default to multi-user.target. A display
+# manager can be enabled correctly and still not be reached through that boot
+# path, so make the intended graphical boot target explicit.
+# ------------------------------------------------------------------------------
+_set_graphical_boot_target() {
+    if ! has_systemd; then
+        log_warn "systemd is not active; cannot set the graphical boot target"
+        return 0
+    fi
+
+    run_cmd sudo systemctl set-default graphical.target
+
+    if [[ "$DRY_RUN" != true ]]; then
+        local default_target
+        default_target="$(systemctl get-default)"
+        if [[ "$default_target" != "graphical.target" ]]; then
+            log_error "Default systemd target is still: $default_target"
+            return 1
+        fi
+    fi
+
+    log_success "Default boot target set to graphical.target"
 }
 
 # ------------------------------------------------------------------------------
 # _setup_sddm
 # SDDM picks up Wayland sessions automatically from /usr/share/wayland-sessions/.
-# swayfx and sway both install a .desktop file there when packaged correctly,
-# so no extra config is needed — just enable the service.
+# Ensure the session exists, then enable and verify the service.
 # ------------------------------------------------------------------------------
 _setup_sddm() {
     local compositor="$1"
     log_info "Configuring SDDM..."
 
-    # Ensure the wayland session directory exists and the compositor has a
-    # session file. Most packages provide this; warn if it's missing.
-    local session_file="/usr/share/wayland-sessions/${compositor}.desktop"
-    if [[ ! -f "$session_file" ]]; then
-        log_warn "Session file not found: $session_file"
-        log_warn "SDDM may not show $compositor in the session list."
-        log_warn "It may be provided by the $compositor package — check after install."
+    _ensure_wayland_session "$compositor"
+
+    if ! has_systemd; then
+        log_warn "systemd is not active; SDDM cannot be enabled in this environment"
+        return 0
+    fi
+    if ! systemctl list-unit-files sddm.service &>/dev/null; then
+        log_error "SDDM is installed but sddm.service was not found"
+        return 1
     fi
 
-    systemd_enable sddm
-    log_success "SDDM enabled — will present login screen on next boot"
+    run_cmd sudo systemctl enable --now sddm.service
+
+    if [[ "$DRY_RUN" != true ]] && ! systemctl is-enabled --quiet sddm.service; then
+        log_error "SDDM did not become enabled"
+        return 1
+    fi
+
+    log_success "SDDM enabled and started"
 }
 
 # ------------------------------------------------------------------------------
@@ -202,6 +271,126 @@ EOF
 }
 
 # ------------------------------------------------------------------------------
+# apply_vm_renderer_fix
+# wlroots compositors (Sway/SwayFX) initialise an EGL/DRI GPU renderer on start.
+# Inside a VM without 3D acceleration that fails hard:
+#
+#   VMware: No 3D enabled
+#   libEGL warning: egl: failed to create dri2 screen
+#   [sway/server.c] Failed to create renderer
+#
+# Forcing wlroots' pixman software renderer avoids the GPU path entirely so Sway
+# starts reliably in a VM. We set it in /etc/environment so it applies to the
+# session the display manager launches (PAM reads /etc/environment for every
+# login, graphical sessions included). Only done when a VM is detected.
+#
+# A better-performing alternative is enabling 3D acceleration in your hypervisor
+# (e.g. VMware "Accelerate 3D graphics", virt-manager "virtio" + 3D / venus),
+# but software rendering always works.
+# ------------------------------------------------------------------------------
+apply_vm_renderer_fix() {
+    [[ "${IS_VM:-no}" != "yes" ]] && return 0
+
+    log_section "VM graphics fix"
+    log_info "Virtual machine detected ($VIRT_TYPE) — enabling wlroots software rendering"
+    log_info "(For better performance, enable 3D acceleration in your hypervisor instead)"
+
+    local envf="/etc/environment"
+    # WLR_RENDERER=pixman        — use the CPU software renderer, skip EGL/DRI
+    # WLR_NO_HARDWARE_CURSORS=1  — VMs often lack hardware cursor planes
+    local vars=("WLR_RENDERER=pixman" "WLR_NO_HARDWARE_CURSORS=1")
+
+    if [[ "$DRY_RUN" == true ]]; then
+        log_info "[DRY-RUN] Would ensure ${vars[*]} in $envf"
+        return 0
+    fi
+
+    local v key
+    for v in "${vars[@]}"; do
+        key="${v%%=*}"
+        if sudo grep -q "^${key}=" "$envf" 2>/dev/null; then
+            sudo sed -i "s|^${key}=.*|${v}|" "$envf"
+        else
+            echo "$v" | sudo tee -a "$envf" > /dev/null
+        fi
+    done
+
+    log_success "Software rendering enabled for VM (WLR_RENDERER=pixman)"
+    log_info "Takes effect on next login — reboot or re-login before starting Sway"
+}
+
+# ------------------------------------------------------------------------------
+# noctalia_cmd
+# Noctalia runs on a Quickshell runtime. The packaged install ships a Quickshell
+# fork called `noctalia-qs` and is launched with `noctalia-qs -c noctalia-shell`;
+# a manual install into ~/.config/quickshell uses plain `qs`. Prints the right
+# launcher command, or nothing if neither runtime is installed.
+# ------------------------------------------------------------------------------
+noctalia_cmd() {
+    if cmd_exists noctalia-qs; then
+        echo "noctalia-qs -c noctalia-shell"
+    elif cmd_exists qs && [[ -d "${HOME}/.config/quickshell/noctalia-shell" ]]; then
+        echo "qs -c noctalia-shell"
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# ensure_noctalia
+# Installs the Noctalia desktop shell so it works on a fresh machine rather than
+# the autostart line silently skipping. Noctalia provides its own bar, launcher,
+# and notifications, replacing waybar/mako/rofi (see create_minimal_sway_config).
+#
+# Install methods per https://docs.noctalia.dev/v4/getting-started/installation/:
+#   Arch   — AUR `noctalia-shell` (pulls noctalia-qs); normally already installed
+#            by module 03 from packages/arch-aur.txt. Installed on demand here too.
+#   Fedora — Terra repo (Fyra Labs), then `dnf install noctalia-shell`.
+#   Other  — Quickshell/noctalia-qs isn't packaged for Debian/Ubuntu; the manual
+#            tarball provides only the config, not the runtime, so it's best-effort
+#            with a clear warning rather than a half-working install.
+# ------------------------------------------------------------------------------
+ensure_noctalia() {
+    [[ "$DISTRO_FAMILY" == "macos" ]] && return 0
+
+    log_section "Noctalia shell"
+
+    if [[ -n "$(noctalia_cmd)" ]]; then
+        log_info "Noctalia runtime already present: $(noctalia_cmd)"
+        return 0
+    fi
+
+    case "$DISTRO_FAMILY" in
+        arch)
+            if cmd_exists paru; then
+                log_info "Installing noctalia-shell via paru (AUR)..."
+                run_cmd paru -S --needed --noconfirm noctalia-shell \
+                    || log_warn "Could not install noctalia-shell via paru"
+                cmd_exists noctalia-qs || record_failed_pkg "AUR" "noctalia-shell"
+            else
+                log_warn "paru not found — cannot install Noctalia"
+            fi
+            ;;
+        fedora)
+            if [[ "$SYSTEM_PROFILE" == "atomic" ]]; then
+                log_warn "Atomic Fedora — layer Noctalia manually instead:"
+                log_warn "  rpm-ostree install noctalia-shell  (after adding the Terra repo)"
+                return 0
+            fi
+            log_info "Adding the Terra repository (provides noctalia-shell)..."
+            # Terra is Fyra Labs' third-party Fedora repo; it carries noctalia-shell
+            # and its noctalia-qs runtime. $releasever expands to the Fedora version.
+            run_cmd sudo dnf install -y --nogpgcheck \
+                --repofrompath 'terra,https://repos.fyralabs.com/terra$releasever' \
+                terra-release || log_warn "Could not add the Terra repo"
+            pkg_install noctalia-shell
+            ;;
+        *)
+            log_warn "Noctalia (noctalia-qs runtime) is not packaged for $DISTRO_FAMILY"
+            log_warn "Install it manually — see https://docs.noctalia.dev/v4/getting-started/installation/"
+            ;;
+    esac
+}
+
+# ------------------------------------------------------------------------------
 # create_minimal_sway_config
 # Creates ~/.config/sway/config with a bare minimum configuration so you have
 # a usable desktop without dotfiles. This is intentionally sparse — it gives
@@ -241,6 +430,22 @@ create_minimal_sway_config() {
         fi
     done
     log_info "Using terminal: $terminal"
+
+    # Noctalia provides its own bar (and launcher/notifications). When it's
+    # active, omit swaybar so you don't get two stacked bars. apply_noctalia_
+    # autostart() adds the exec line that actually starts it.
+    local bar_block
+    if [[ -n "$(noctalia_cmd)" ]]; then
+        bar_block="# ── Status bar ────────────────────────────────────────────────────────────────
+# Provided by Noctalia (see the noctalia-shell exec below) — swaybar disabled."
+        log_info "Noctalia detected — swaybar omitted from the minimal config"
+    else
+        bar_block="# ── Status bar ────────────────────────────────────────────────────────────────
+bar {
+    status_command date '+%Y-%m-%d %H:%M'
+    position top
+}"
+    fi
 
     if [[ "$DRY_RUN" != true ]]; then
         mkdir -p "$SWAY_CONFIG_DIR"
@@ -294,11 +499,7 @@ bindsym \$mod+v splitv
 bindsym \$mod+f fullscreen
 bindsym \$mod+Shift+space floating toggle
 
-# ── Status bar ────────────────────────────────────────────────────────────────
-bar {
-    status_command date '+%Y-%m-%d %H:%M'
-    position top
-}
+${bar_block}
 
 # ── Output ────────────────────────────────────────────────────────────────────
 # Remove this block once your dotfiles set up kanshi for multi-monitor support
@@ -376,43 +577,62 @@ EOF
 
 # ------------------------------------------------------------------------------
 # apply_noctalia_autostart
-# Appends the noctalia-shell autostart exec line to ~/.config/sway/config.
+# Appends the Noctalia autostart exec line to ~/.config/sway/config, using the
+# correct runtime command (noctalia-qs for the packaged install, qs for a manual
+# one — see noctalia_cmd). It must be started as an exec in the Sway config
+# rather than as a systemd user service because it needs the Wayland compositor
+# to be running first.
 #
-# noctalia-shell is launched via Quickshell (qs). It must be started as an
-# exec in the Sway config rather than as a systemd user service because it
-# needs the Wayland compositor to be running first.
+# Because Noctalia provides the bar AND notifications, this also disables any
+# leftover waybar/mako user services so they don't run alongside it and produce
+# a duplicate bar or double notifications.
 #
 # The line is identified by a marker comment so this function is idempotent.
 # ------------------------------------------------------------------------------
 apply_noctalia_autostart() {
-    log_section "noctalia-shell autostart"
+    log_section "Noctalia autostart"
 
     if [[ ! -f "$SWAY_CONFIG" ]]; then
         log_warn "No Sway config found at $SWAY_CONFIG — run create_minimal_sway_config first"
         return 1
     fi
 
+    local launcher
+    launcher="$(noctalia_cmd)"
+    if [[ -z "$launcher" ]]; then
+        log_warn "Noctalia runtime not found — autostart skipped"
+        log_warn "Install it (module re-run, or see ensure_noctalia) then re-run this module"
+        return
+    fi
+
+    # Noctalia replaces waybar and mako — stop any user services for them so they
+    # don't draw a second bar or duplicate notifications next to Noctalia.
+    if has_systemd && [[ "$DRY_RUN" != true ]]; then
+        local svc
+        for svc in waybar.service mako.service; do
+            if systemctl --user list-unit-files "$svc" &>/dev/null; then
+                log_info "Disabling $svc (Noctalia provides this) ..."
+                systemctl --user disable --now "$svc" 2>/dev/null || true
+            fi
+        done
+    fi
+
     if grep -q "noctalia-shell" "$SWAY_CONFIG"; then
-        log_info "noctalia-shell autostart already present in $SWAY_CONFIG — skipping"
+        log_info "Noctalia autostart already present in $SWAY_CONFIG — skipping"
         return
     fi
 
-    if ! cmd_exists qs; then
-        log_warn "qs (Quickshell) not found — noctalia-shell autostart skipped"
-        log_warn "Install noctalia-qs via paru then re-run this module"
-        return
-    fi
-
-    log_info "Appending noctalia-shell autostart to $SWAY_CONFIG..."
+    log_info "Appending Noctalia autostart ($launcher) to $SWAY_CONFIG..."
     if [[ "$DRY_RUN" != true ]]; then
-        cat >> "$SWAY_CONFIG" << 'EOF'
+        cat >> "$SWAY_CONFIG" << EOF
 
-# ── noctalia-shell ────────────────────────────────────────────────────────────
-exec qs -c noctalia-shell
+# ── Noctalia shell (bar, launcher, notifications) ─────────────────────────────
+# Replaces waybar/mako/rofi. Launched via its Quickshell runtime.
+exec ${launcher}
 EOF
-        log_success "noctalia-shell autostart added to $SWAY_CONFIG"
+        log_success "Noctalia autostart added to $SWAY_CONFIG"
     else
-        log_info "[DRY-RUN] Would append noctalia-shell autostart to $SWAY_CONFIG"
+        log_info "[DRY-RUN] Would append 'exec ${launcher}' to $SWAY_CONFIG"
     fi
 }
 
@@ -585,6 +805,40 @@ setup_user_groups() {
 }
 
 # ------------------------------------------------------------------------------
+# setup_plasma_session
+# Configures a working KDE Plasma session when the Sway/SwayFX install failed and
+# module 03 installed Plasma as a fallback (DESKTOP_FALLBACK=kde). Plasma ships
+# its own /usr/share/wayland-sessions entry, so we just point the display manager
+# at it and set the graphical boot target.
+# ------------------------------------------------------------------------------
+setup_plasma_session() {
+    log_section "KDE Plasma session (Sway fallback)"
+
+    if ! cmd_exists startplasma-wayland && ! cmd_exists startplasma-x11; then
+        log_warn "Plasma is not installed — cannot configure a desktop session"
+        log_warn "Re-run module 03 or install a desktop environment manually"
+        return 0
+    fi
+
+    if cmd_exists sddm; then
+        log_info "Configuring SDDM for the Plasma session..."
+        if has_systemd && systemctl list-unit-files sddm.service &>/dev/null; then
+            run_cmd sudo systemctl enable --now sddm.service
+        else
+            log_warn "sddm.service not available — enable your display manager manually"
+        fi
+    elif cmd_exists gdm; then
+        systemd_enable gdm
+    else
+        log_warn "No display manager found — install sddm to log into Plasma"
+    fi
+
+    _set_graphical_boot_target
+
+    log_success "KDE Plasma configured as the desktop (Sway was unavailable)"
+}
+
+# ------------------------------------------------------------------------------
 # main
 # ------------------------------------------------------------------------------
 main() {
@@ -600,9 +854,25 @@ main() {
         return 0
     fi
 
+    # Services and groups are needed for any desktop, Sway or the KDE fallback.
     setup_system_services
     setup_user_groups
+
+    # If Sway/SwayFX never installed, module 03 falls back to KDE Plasma. Detect
+    # that (either via the marker from module 03 or by the absence of a Sway
+    # binary) and configure Plasma instead of writing a Sway config.
+    if [[ "${DESKTOP_FALLBACK:-}" == "kde" ]] || { ! cmd_exists swayfx && ! cmd_exists sway; }; then
+        log_warn "Sway/SwayFX not available — configuring the KDE Plasma fallback"
+        setup_plasma_session
+        echo ""
+        log_success "Module 10 complete (KDE Plasma fallback)"
+        log_info "Reboot to log into Plasma. Plasma 6 supports tiling via the built-in tile editor."
+        return 0
+    fi
+
+    apply_vm_renderer_fix
     setup_login_manager
+    ensure_noctalia
     create_minimal_sway_config
     apply_flameshot_fix
     apply_noctalia_autostart
@@ -611,7 +881,7 @@ main() {
     log_success "Module 10 complete"
     log_info "Next steps:"
     log_info "  • Re-login or reboot for group changes to take effect"
-    log_info "  • Reboot to start greetd and log into SwayFX"
+    log_info "  • Reboot to start the login manager and log into SwayFX"
     log_info "  • Once you have SSH set up, run module 08 to apply your real dotfiles"
     log_info "    chezmoi apply will replace the minimal Sway config with your full one"
 }

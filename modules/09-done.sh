@@ -36,11 +36,18 @@ main() {
     echo "  • Reboot to apply group membership changes (libvirt, video, input, etc.)"
     echo "  • If Proton Drive was skipped: run  rclone config  then re-run module 07"
     echo "  • Check the log for any warnings:  cat ${LOG_FILE}"
+    if [[ -s "${FAILED_PKG_FILE:-$HOME/failed-packages.txt}" ]]; then
+        echo ""
+        log_warn "Some packages failed to install — review and install them manually:"
+        echo "      cat ${FAILED_PKG_FILE:-$HOME/failed-packages.txt}"
+    fi
     echo ""
 
     log_section "Useful commands"
     echo "  Snapshot list:   snapper list"
     echo "  Roll back:       sudo snapper rollback <number>"
+    echo "  Update all:      update-all   (system → AUR → Flatpak → mise → Homebrew)"
+    echo "  Add a web app:   webapp add \"Name\" https://url"
     echo "  Update mise:     mise upgrade"
     echo "  Update Flatpak:  flatpak update"
     echo "  Update Homebrew: brew upgrade"

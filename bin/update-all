@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# update-all — update everything, in a dependency-sensible order
+# ==============================================================================
+# Order matters: update the base system first (it provides the libraries that
+# AUR packages and Homebrew build against), then layer the user-space managers
+# on top.
+#
+#   1. System packages — rpm-ostree / pacman / dnf / apt   (needs sudo)
+#   2. AUR             — paru                               (Arch only)
+#   3. Flatpak         — system + user apps
+#   4. mise            — language runtimes and CLI tools
+#   5. Homebrew        — formulae (Linuxbrew / macOS)
+#
+# Each step is best-effort: a failure is reported but doesn't stop the rest.
+# Run with no arguments:  update-all
+# ==============================================================================
+set -uo pipefail
+
+step() { printf '\n\033[1m==> %s\033[0m\n' "$1"; }
+
+# 1. System packages -----------------------------------------------------------
+step "System packages"
+if [[ -e /run/ostree-booted ]] && command -v rpm-ostree >/dev/null 2>&1; then
+    sudo rpm-ostree upgrade || true
+elif command -v pacman >/dev/null 2>&1; then
+    sudo pacman -Syu || true
+elif command -v dnf >/dev/null 2>&1; then
+    sudo dnf upgrade --refresh -y || true
+elif command -v apt-get >/dev/null 2>&1; then
+    sudo apt-get update || true
+    sudo apt-get full-upgrade -y || true
+    sudo apt-get autoremove -y || true
+elif [[ "$(uname -s)" == "Darwin" ]]; then
+    echo "macOS system updates are managed by Software Update — skipping"
+fi
+
+# 2. AUR (Arch only) -----------------------------------------------------------
+if command -v paru >/dev/null 2>&1; then
+    step "AUR (paru)"
+    paru -Sua || true
+fi
+
+# 3. Flatpak -------------------------------------------------------------------
+if command -v flatpak >/dev/null 2>&1; then
+    step "Flatpak"
+    flatpak update -y || true
+    flatpak uninstall --unused -y || true
+fi
+
+# 4. mise ----------------------------------------------------------------------
+mise_bin="$(command -v mise 2>/dev/null || true)"
+[[ -x "$HOME/.local/bin/mise" ]] && mise_bin="$HOME/.local/bin/mise"
+if [[ -n "$mise_bin" ]]; then
+    step "mise"
+    "$mise_bin" upgrade || true
+fi
+
+# 5. Homebrew ------------------------------------------------------------------
+brew_bin="$(command -v brew 2>/dev/null || true)"
+[[ -x /home/linuxbrew/.linuxbrew/bin/brew ]] && brew_bin=/home/linuxbrew/.linuxbrew/bin/brew
+[[ -x /opt/homebrew/bin/brew ]] && brew_bin=/opt/homebrew/bin/brew
+if [[ -n "$brew_bin" ]]; then
+    step "Homebrew"
+    "$brew_bin" update || true
+    "$brew_bin" upgrade || true
+    "$brew_bin" cleanup || true
+fi
+
+printf '\n\033[1;32mAll package managers updated.\033[0m\n'

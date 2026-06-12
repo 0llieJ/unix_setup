@@ -230,22 +230,47 @@ install_aur_packages() {
         return 0
     }
 
-    if ! run_cmd paru -S --needed --noconfirm --skipreview "${aur_pkgs[@]}"; then
-        # Check if the failure was a shared library error (broken paru after pacman upgrade)
-        local paru_err
-        paru_err=$(paru --version 2>&1) || true
-        if echo "$paru_err" | grep -q "cannot open shared object file"; then
-            log_error "paru is broken — libalpm was upgraded and paru needs rebuilding."
-            log_error "Fix it by running:"
-            log_error "  bash ~/unix_setup/modules/02-repair-paru.sh"
-            log_error "Then re-run:  bash ~/unix_setup/setup.sh --only 03"
-        else
-            log_error "paru install failed. Check the output above for details."
-        fi
-        return 1
+    if run_cmd paru -S --needed --noconfirm --skipreview "${aur_pkgs[@]}"; then
+        log_success "AUR packages installed"
+        return 0
     fi
 
-    log_success "AUR packages installed"
+    # The batch failed. First check for a broken paru (libalpm bumped by a pacman
+    # upgrade) — retrying individual packages won't help until paru is rebuilt.
+    local paru_err
+    paru_err=$(paru --version 2>&1) || true
+    if echo "$paru_err" | grep -q "cannot open shared object file"; then
+        log_error "paru is broken — libalpm was upgraded and paru needs rebuilding."
+        log_error "Fix it by running:"
+        log_error "  bash ~/unix_setup/modules/02-repair-paru.sh"
+        log_error "Then re-run:  bash ~/unix_setup/setup.sh --only 03"
+        # Don't abort the whole setup — record every AUR package so it can be
+        # reinstalled after paru is repaired, and carry on.
+        local pkg
+        for pkg in "${aur_pkgs[@]}"; do
+            record_failed_pkg "AUR" "$pkg" "paru broken (rebuild then reinstall)"
+        done
+        return 0
+    fi
+
+    # Generic failure — retry each package individually so a single bad PKGBUILD
+    # (e.g. swayfx) doesn't block all the others, and record only the failures.
+    log_warn "Batch AUR install failed — retrying packages individually to isolate failures"
+    local pkg aur_failed=()
+    for pkg in "${aur_pkgs[@]}"; do
+        if run_cmd paru -S --needed --noconfirm --skipreview "$pkg"; then
+            log_success "Installed (AUR): $pkg"
+        else
+            log_error "Failed to install (AUR): $pkg"
+            record_failed_pkg "AUR" "$pkg"
+            aur_failed+=("$pkg")
+        fi
+    done
+
+    if [[ ${#aur_failed[@]} -gt 0 ]]; then
+        log_warn "${#aur_failed[@]} AUR package(s) failed — see $FAILED_PKG_FILE"
+    fi
+    return 0
 }
 
 # ------------------------------------------------------------------------------
@@ -284,6 +309,53 @@ install_sway_packages() {
 }
 
 # ------------------------------------------------------------------------------
+# ensure_desktop_or_fallback
+# Sway/SwayFX is the intended desktop, but the compositor comes from the AUR
+# (swayfx) and can fail to build. If, after the package and AUR steps, no Sway
+# compositor exists, fall back to KDE Plasma — well-established, reliable on
+# Wayland, lean when installed as plasma-desktop (not the full plasma-meta), and
+# it supports tiling via the built-in tile editor.
+#
+# This runs ONLY when Sway is genuinely missing, so a healthy Sway install is
+# never touched. Sets DESKTOP_FALLBACK=kde so module 10 configures Plasma's
+# login session instead of writing a Sway config.
+# ------------------------------------------------------------------------------
+ensure_desktop_or_fallback() {
+    [[ "$DISTRO_FAMILY" == "macos" ]] && return 0
+    [[ "$SYSTEM_PROFILE" == "atomic" ]] && return 0
+
+    if cmd_exists swayfx || cmd_exists sway; then
+        log_info "Sway compositor present — no desktop fallback needed"
+        return 0
+    fi
+
+    log_section "Desktop fallback"
+    log_warn "Neither swayfx nor sway is installed — falling back to KDE Plasma"
+
+    # Minimal but usable Plasma: the Wayland session, SDDM greeter, a terminal,
+    # and a file manager. Avoids the heavy plasma-meta / full app suite.
+    local kde_pkgs=()
+    case "$DISTRO_FAMILY" in
+        arch)          kde_pkgs=(plasma-desktop sddm konsole dolphin) ;;
+        fedora)        kde_pkgs=(plasma-desktop sddm konsole dolphin) ;;
+        ubuntu|debian) kde_pkgs=(kde-plasma-desktop sddm konsole dolphin) ;;
+        *)
+            log_warn "No KDE fallback package set for '$DISTRO_FAMILY' — skipping"
+            return 0
+            ;;
+    esac
+
+    pkg_install "${kde_pkgs[@]}"
+
+    if cmd_exists startplasma-wayland || cmd_exists startplasma-x11; then
+        export DESKTOP_FALLBACK="kde"
+        log_warn "KDE Plasma installed as the fallback desktop (Sway was unavailable)"
+    else
+        log_error "KDE Plasma fallback install did not succeed — see $FAILED_PKG_FILE"
+    fi
+}
+
+# ------------------------------------------------------------------------------
 # main
 # ------------------------------------------------------------------------------
 main() {
@@ -293,6 +365,7 @@ main() {
     install_system_packages
     install_aur_packages
     install_sway_packages
+    ensure_desktop_or_fallback
 
     log_success "Module 03 complete"
 }
