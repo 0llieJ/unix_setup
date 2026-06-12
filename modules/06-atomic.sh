@@ -363,6 +363,143 @@ _setup_systemd_boot_btrfs() {
 }
 
 # ------------------------------------------------------------------------------
+# _limine_set_default <key> <value>
+# Idempotently set KEY=VALUE in /etc/default/limine (update in place or append).
+# ------------------------------------------------------------------------------
+_limine_set_default() {
+    local key="$1" val="$2" f="/etc/default/limine"
+    sudo install -d -m 0755 /etc/default
+    if sudo grep -q "^${key}=" "$f" 2>/dev/null; then
+        sudo sed -i "s|^${key}=.*|${key}=${val}|" "$f"
+    else
+        echo "${key}=${val}" | sudo tee -a "$f" > /dev/null
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# _limine_detect_os_name <esp>
+# Derive the OS-entry name used in limine.conf (the value TARGET_OS_NAME must
+# match) from the first top-level entry, stripping any " (variant)" suffix.
+# e.g. "/Arch Linux (linux)" → "Arch Linux". Falls back to "Arch Linux".
+# ------------------------------------------------------------------------------
+_limine_detect_os_name() {
+    local esp="$1" c first
+    for c in "${esp}/limine/limine.conf" "${esp}/limine.conf" \
+             /boot/limine/limine.conf /boot/limine.conf; do
+        [[ -f "$c" ]] || continue
+        first="$(grep -m1 -E '^/[^/]' "$c" 2>/dev/null | sed -E 's|^/||; s| \(.*$||')"
+        [[ -n "$first" ]] && { echo "$first"; return; }
+    done
+    echo "Arch Linux"
+}
+
+# ------------------------------------------------------------------------------
+# _limine_prepare_config <esp> <os_name>
+# limine-snapper-sync injects snapshot boot entries into limine.conf, but it
+# requires a specific layout that archinstall's generated config does not use:
+#
+#   * a nested structure — an OS entry `/<name>` containing `//<kernel>` entries
+#     and a `//Snapshots` marker telling the tool where to place snapshots; and
+#   * the config to live in the SAME directory as the kernels, because the tool
+#     resolves `boot():/vmlinuz-*` relative to ESP_PATH.
+#
+# archinstall instead writes a flat config (`/Arch Linux (linux)` with `path:`)
+# inside a `limine/` subdirectory while the kernels sit at the ESP root — so the
+# tool can't find the config, the OS entry, or the kernels. This converts the
+# flat config to the nested layout and relocates it to `<esp>/limine.conf`
+# (next to the kernels), removing the old copy so it can't shadow the new one in
+# Limine's config search order. Idempotent: if the ESP-root config is already
+# nested, it does nothing.
+# ------------------------------------------------------------------------------
+_limine_prepare_config() {
+    local esp="$1" os_name="$2"
+    local target="${esp}/limine.conf"
+
+    # Already converted/relocated? (a nested `//` entry is present) → done.
+    if [[ -f "$target" ]] && grep -qE '^[[:space:]]*//' "$target" 2>/dev/null; then
+        log_info "limine.conf already in the required layout ($target) — skipping conversion"
+        return 0
+    fi
+
+    # Find the active config to convert (prefer archinstall's subdir copy).
+    local active="" c
+    for c in "${esp}/limine/limine.conf" "${esp}/limine.conf" \
+             /boot/limine/limine.conf /boot/limine.conf; do
+        [[ -f "$c" ]] && { active="$c"; break; }
+    done
+    if [[ -z "$active" ]]; then
+        log_warn "No existing limine.conf found under $esp — cannot configure snapshot entries"
+        return 1
+    fi
+
+    # The kernels must sit at the ESP root next to the config (boot(): resolves
+    # relative to ESP_PATH). If they're elsewhere, relocating won't help.
+    if ! ls "${esp}"/vmlinuz-* >/dev/null 2>&1; then
+        log_warn "No kernels at ${esp}/vmlinuz-* — limine-snapper-sync needs the config"
+        log_warn "and kernels in one directory. Leaving boot config unchanged."
+        return 1
+    fi
+
+    log_info "Converting $active → nested layout at $target (OS entry: '$os_name')"
+    if [[ "$DRY_RUN" == true ]]; then
+        log_info "[DRY-RUN] Would convert/relocate limine.conf and remove any shadowing copy"
+        return 0
+    fi
+    if ! cmd_exists python3; then
+        log_warn "python3 not available — cannot convert limine.conf automatically"
+        return 1
+    fi
+
+    # Converter: re-nest each flat `/Name` entry under one `/<os_name>` parent,
+    # preserving its properties (cmdline etc.) exactly, and append `//Snapshots`.
+    local tmp_py
+    tmp_py="$(mktemp)"
+    cat > "$tmp_py" <<'PYEOF'
+import sys, os
+target = os.environ.get("TARGET_OS_NAME", "Arch Linux")
+lines = sys.stdin.read().splitlines()
+if any(l.lstrip().startswith("//") for l in lines):      # already nested
+    sys.stdout.write("\n".join(lines) + "\n"); sys.exit(0)
+globals_, entries, cur = [], [], None
+for line in lines:
+    s = line.strip()
+    if s.startswith("/") and not s.startswith("//"):
+        cur = {"name": s[1:].strip(), "props": []}; entries.append(cur)
+    elif cur is None:
+        if s: globals_.append(s)
+    elif s:
+        cur["props"].append(s)
+if not entries:
+    sys.stderr.write("converter: no entries found; leaving config unchanged\n")
+    sys.stdout.write("\n".join(lines) + "\n"); sys.exit(2)
+out = list(globals_) + ["", f"/{target}"]
+for e in entries:
+    out.append(f"    //{e['name']}")
+    out += [f"        {p}" for p in e["props"]]
+    out.append("")
+out.append("    //Snapshots")
+sys.stdout.write("\n".join(out) + "\n")
+PYEOF
+
+    sudo cp -a "$active" "${active}.pre-snapper.bak"
+    if ! sudo cat "$active" | TARGET_OS_NAME="$os_name" python3 "$tmp_py" \
+            | sudo tee "$target" > /dev/null; then
+        rm -f "$tmp_py"
+        log_error "limine.conf conversion failed (backup at ${active}.pre-snapper.bak)"
+        return 1
+    fi
+    rm -f "$tmp_py"
+
+    # Remove the old config if it lived elsewhere, so it can't shadow the new
+    # ESP-root config in Limine's search order.
+    if [[ "$active" != "$target" ]]; then
+        sudo rm -f "$active"
+        log_info "Removed shadowing config $active (now using $target)"
+    fi
+    log_success "limine.conf prepared at $target"
+}
+
+# ------------------------------------------------------------------------------
 # _setup_limine_snapper
 # Installs limine-snapper-sync (AUR — Arch only), which watches /.snapshots
 # and updates the Limine bootloader config to add/remove entries as snapshots
@@ -405,15 +542,23 @@ _setup_limine_snapper() {
     fi
 
     log_info "Limine ESP path: $esp_path"
+
+    # Convert/relocate limine.conf into the layout limine-snapper-sync requires
+    # before pointing the tool at it. If this can't be done safely, skip rather
+    # than run the tool against an incompatible config (which only errors out).
+    local os_name
+    os_name="$(_limine_detect_os_name "$esp_path")"
+    if ! _limine_prepare_config "$esp_path" "$os_name"; then
+        log_warn "Skipping limine-snapper-sync — limine.conf could not be prepared"
+        log_warn "Snapshots are still created by Snapper; they just won't appear in the boot menu"
+        return 1
+    fi
+
     if [[ "$DRY_RUN" != true ]]; then
-        sudo install -d -m 0755 /etc/default
-        if [[ -f /etc/default/limine ]] && grep -q '^ESP_PATH=' /etc/default/limine; then
-            sudo sed -i "s|^ESP_PATH=.*|ESP_PATH=${esp_path}|" /etc/default/limine
-        else
-            echo "ESP_PATH=${esp_path}" | sudo tee -a /etc/default/limine > /dev/null
-        fi
+        _limine_set_default ESP_PATH "$esp_path"
+        _limine_set_default TARGET_OS_NAME "$os_name"
     else
-        log_info "[DRY-RUN] Would set ESP_PATH=$esp_path in /etc/default/limine"
+        log_info "[DRY-RUN] Would set ESP_PATH=$esp_path and TARGET_OS_NAME=$os_name in /etc/default/limine"
     fi
 
     # Run once now to sync existing snapshots into the Limine config
