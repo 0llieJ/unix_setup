@@ -77,14 +77,80 @@ check_remote_configured() {
     if "$RCLONE_BIN" listremotes 2>/dev/null | grep -q "^${PROTON_REMOTE}:"; then
         log_info "rclone remote '${PROTON_REMOTE}' is configured"
         return 0
-    else
-        log_warn "rclone remote '${PROTON_REMOTE}' is NOT configured yet."
-        log_warn "Run the following to set it up (one-time step):"
-        log_warn "  rclone config"
-        log_warn "  → New remote → name: ${PROTON_REMOTE} → type: protondrive → follow prompts"
-        log_warn "Then re-run this module: bash ${SETUP_DIR}/modules/07-proton.sh"
+    fi
+
+    log_warn "rclone remote '${PROTON_REMOTE}' is NOT configured yet."
+
+    if [[ "$DRY_RUN" == true ]]; then
+        log_info "[DRY-RUN] Would offer to configure the '${PROTON_REMOTE}' remote interactively"
         return 1
     fi
+
+    if ask "Set up the Proton Drive remote now?" y; then
+        configure_remote_interactive && return 0
+    fi
+
+    # Fall back to manual instructions if they declined or setup failed.
+    log_warn "To set it up later, run:"
+    log_warn "  rclone config"
+    log_warn "  → New remote → name: ${PROTON_REMOTE} → type: protondrive → follow prompts"
+    log_warn "Then re-run this module: bash ${SETUP_DIR}/modules/07-proton.sh"
+    return 1
+}
+
+# ------------------------------------------------------------------------------
+# configure_remote_interactive
+# Walks the user through creating the "proton" rclone remote by prompting for
+# their Proton credentials, then creating the remote non-interactively via
+# `rclone config create`. This replaces the manual `rclone config` wizard so the
+# user only has to answer a few questions.
+#
+# Proton specifics:
+#   username / password — your Proton account login. The password is obscured by
+#                         rclone (--obscure) before being written to the config.
+#   2fa                 — a current 6-digit TOTP code if 2FA is enabled. It is
+#                         only used once, at creation time, to obtain a login
+#                         token, so it must be entered fresh (codes expire ~30s).
+#   mailbox_password    — only for accounts using Proton's two-password mode
+#                         (separate login + mailbox password); left blank otherwise.
+# ------------------------------------------------------------------------------
+configure_remote_interactive() {
+    log_section "Configure Proton Drive remote"
+
+    local username password password2 twofa mailbox_pw
+
+    read -r -p "$(printf "${BOLD}Proton email/username: ${NC}")" username
+    if [[ -z "$username" ]]; then
+        log_error "No username entered — aborting remote setup"
+        return 1
+    fi
+
+    # Read the password twice without echoing, and confirm they match.
+    read -r -s -p "$(printf "${BOLD}Proton password: ${NC}")" password; echo
+    read -r -s -p "$(printf "${BOLD}Confirm password: ${NC}")" password2; echo
+    if [[ "$password" != "$password2" ]]; then
+        log_error "Passwords did not match — aborting remote setup"
+        return 1
+    fi
+
+    read -r -p "$(printf "${BOLD}2FA code (leave blank if 2FA is off): ${NC}")" twofa
+    read -r -s -p "$(printf "${BOLD}Mailbox password (blank unless you use two-password mode): ${NC}")" mailbox_pw; echo
+
+    # Build the key=value args. Only include optional fields when provided so we
+    # don't write empty values into the remote config.
+    local -a args=(config create "$PROTON_REMOTE" protondrive
+        username="$username" password="$password" --obscure)
+    [[ -n "$twofa" ]]     && args+=("2fa=${twofa}")
+    [[ -n "$mailbox_pw" ]] && args+=("mailbox_password=${mailbox_pw}")
+
+    log_info "Creating rclone remote '${PROTON_REMOTE}'..."
+    if "$RCLONE_BIN" "${args[@]}"; then
+        log_success "Proton Drive remote '${PROTON_REMOTE}' configured"
+        return 0
+    fi
+
+    log_error "rclone could not create the remote (check credentials / 2FA code and retry)"
+    return 1
 }
 
 # ------------------------------------------------------------------------------
