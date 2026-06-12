@@ -321,15 +321,19 @@ apply_vm_renderer_fix() {
 
 # ------------------------------------------------------------------------------
 # noctalia_cmd
-# Noctalia runs on a Quickshell runtime. The packaged install ships a Quickshell
-# fork called `noctalia-qs` and is launched with `noctalia-qs -c noctalia-shell`;
-# a manual install into ~/.config/quickshell uses plain `qs`. Prints the right
-# launcher command, or nothing if neither runtime is installed.
+# Noctalia runs on a Quickshell runtime. The current `noctalia-qs` package
+# provides the `qs` (and `quickshell`) binary — NOT a binary literally named
+# `noctalia-qs` — plus the shell config under /etc/xdg/quickshell/noctalia-shell,
+# which `qs -c noctalia-shell` finds via XDG_CONFIG_DIRS. A manual install puts
+# the same config under ~/.config/quickshell. Older packages shipped a
+# `noctalia-qs` wrapper binary, which is still honoured if present. Prints the
+# right launcher command, or nothing if the runtime/config isn't installed.
 # ------------------------------------------------------------------------------
 noctalia_cmd() {
     if cmd_exists noctalia-qs; then
         echo "noctalia-qs -c noctalia-shell"
-    elif cmd_exists qs && [[ -d "${HOME}/.config/quickshell/noctalia-shell" ]]; then
+    elif cmd_exists qs && { [[ -d "${HOME}/.config/quickshell/noctalia-shell" ]] \
+            || [[ -d /etc/xdg/quickshell/noctalia-shell ]]; }; then
         echo "qs -c noctalia-shell"
     fi
 }
@@ -364,7 +368,10 @@ ensure_noctalia() {
                 log_info "Installing noctalia-shell via paru (AUR)..."
                 run_cmd paru -S --needed --noconfirm noctalia-shell \
                     || log_warn "Could not install noctalia-shell via paru"
-                cmd_exists noctalia-qs || record_failed_pkg "AUR" "noctalia-shell"
+                # Verify via the resolved launcher, not a `noctalia-qs` binary —
+                # the package provides `qs`, so checking for noctalia-qs gives a
+                # false "failed install" even when it installed correctly.
+                [[ -n "$(noctalia_cmd)" ]] || record_failed_pkg "AUR" "noctalia-shell"
             else
                 log_warn "paru not found — cannot install Noctalia"
             fi
