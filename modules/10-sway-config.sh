@@ -440,9 +440,14 @@ create_minimal_sway_config() {
 # Provided by Noctalia (see the noctalia-shell exec below) — swaybar disabled."
         log_info "Noctalia detected — swaybar omitted from the minimal config"
     else
+        # NOTE: sway's config parser strips one level of quoting from the
+        # status_command before handing it to `sh -c`, so a quoted date format
+        # containing a space (e.g. '+%Y-%m-%d %H:%M') is split into two args and
+        # date fails with "extra operand" — that error then shows on the bar.
+        # Use an ISO-8601 'T' separator so no quoting/space is needed at all.
         bar_block="# ── Status bar ────────────────────────────────────────────────────────────────
 bar {
-    status_command date '+%Y-%m-%d %H:%M'
+    status_command while date +%Y-%m-%dT%H:%M; do sleep 20; done
     position top
 }"
     fi
