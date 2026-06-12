@@ -21,8 +21,10 @@ step() { printf '\n\033[1m==> %s\033[0m\n' "$1"; }
 
 # 1. System packages -----------------------------------------------------------
 step "System packages"
-if [[ -e /run/ostree-booted ]] && command -v rpm-ostree >/dev/null 2>&1; then
-    sudo rpm-ostree upgrade || true
+if [[ -e /run/ostree-booted ]]; then
+    # On atomic/OSTree the OS is updated by the image's own updater — don't run
+    # rpm-ostree here. This command only refreshes the user layer below.
+    echo "Atomic image — OS updates are handled by the image; updating user layer only."
 elif command -v pacman >/dev/null 2>&1; then
     sudo pacman -Syu || true
 elif command -v dnf >/dev/null 2>&1; then

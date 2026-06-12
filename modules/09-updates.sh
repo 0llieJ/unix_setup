@@ -31,6 +31,15 @@ USER_TIMER="${HOME}/.config/systemd/user/unix-setup-user-update.timer"
 setup_system_updates() {
     log_section "Weekly system updates"
 
+    # On atomic/OSTree systems the base image ships its own OS updater
+    # (e.g. uupd / rpm-ostree automatic staging). Adding our own rpm-ostree timer
+    # would be a second, conflicting OS updater. Leave OS updates to the image;
+    # the user-layer timer (Flatpak/mise/Homebrew) below is all we manage there.
+    if [[ "${SYSTEM_PROFILE:-mutable}" == "atomic" ]]; then
+        log_info "Atomic system — OS updates are handled by the image's own updater; skipping the system update timer"
+        return
+    fi
+
     if ! has_systemd; then
         log_warn "systemd is not active — weekly system update timer skipped"
         return

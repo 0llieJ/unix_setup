@@ -195,6 +195,25 @@ install_homebrew() {
         return
     fi
 
+    # Skip any formula whose command is already on PATH — e.g. provided by the
+    # system or baked into an atomic image — so we don't install a duplicate
+    # Homebrew copy. A few formula names differ from their command name; map them.
+    local -A cmd_for=( [nushell]=nu [proxychains-ng]=proxychains4 [yubikey-manager]=ykman )
+    local _f _c _want=()
+    for _f in "${brew_formulae[@]}"; do
+        _c="${cmd_for[$_f]:-$_f}"
+        if cmd_exists "$_c"; then
+            log_info "Skipping Homebrew formula '$_f' — '$_c' already present"
+        else
+            _want+=("$_f")
+        fi
+    done
+    brew_formulae=("${_want[@]}")
+    if [[ ${#brew_formulae[@]} -eq 0 ]]; then
+        log_info "All Homebrew formulae already present — nothing to install"
+        return
+    fi
+
     confirm_packages "Homebrew formulae" "${brew_formulae[@]}" || {
         log_warn "Homebrew formula install skipped by user"
         return 0
