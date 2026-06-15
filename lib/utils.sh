@@ -324,3 +324,57 @@ ensure_local_bin_on_path() {
     [[ "$updated" == 1 ]] && log_success "~/.local/bin will be on PATH in new shells (run: source ~/.bashrc)"
     return 0
 }
+
+# ------------------------------------------------------------------------------
+# Desktop shell selection (Noctalia vs the traditional bar/launcher/notify/lock
+# stack). The choice is needed by module 03 (to install the right packages) and
+# module 10 (to configure the shell), and a later `bash setup.sh --only 10` must
+# still know what was picked — so it's persisted to a small state file as well as
+# exported for the current run.
+#
+# Precedence: an explicit DESKTOP_SHELL env var > a previously saved choice >
+# an interactive prompt (default: noctalia). In DRY_RUN or non-interactive
+# shells it defaults to noctalia without prompting.
+#
+# On atomic systems the packages are baked into the image, so this choice only
+# affects how module 10 configures the shell — module 03 still skips layering.
+# ------------------------------------------------------------------------------
+DESKTOP_SHELL_STATE="${XDG_CONFIG_HOME:-$HOME/.config}/unix-setup/desktop-shell"
+
+select_desktop_shell() {
+    local choice="${DESKTOP_SHELL:-}"
+
+    if [[ -z "$choice" && -f "$DESKTOP_SHELL_STATE" ]]; then
+        choice="$(<"$DESKTOP_SHELL_STATE")"
+    fi
+
+    if [[ -z "$choice" ]]; then
+        if [[ "${DRY_RUN:-false}" == true ]] || [[ ! -t 0 ]]; then
+            choice="noctalia"
+            log_info "Desktop shell: defaulting to '$choice' (non-interactive)"
+        else
+            echo ""
+            printf "${BOLD}Which desktop shell do you want?${NC}\n"
+            echo "  1) Noctalia    — all-in-one: bar, launcher, notifications, lock screen (recommended)"
+            echo "  2) Traditional — waybar + rofi + mako + swaylock"
+            local reply
+            read -r -p "$(printf "${BOLD}Choice [1/2] (default 1): ${NC}")" reply
+            case "$reply" in
+                2) choice="traditional" ;;
+                *) choice="noctalia" ;;
+            esac
+        fi
+    fi
+
+    case "$choice" in
+        noctalia|traditional) ;;
+        *) log_warn "Unknown DESKTOP_SHELL '$choice' — using 'noctalia'"; choice="noctalia" ;;
+    esac
+
+    export DESKTOP_SHELL="$choice"
+    if [[ "${DRY_RUN:-false}" != true ]]; then
+        mkdir -p "$(dirname "$DESKTOP_SHELL_STATE")"
+        echo "$choice" > "$DESKTOP_SHELL_STATE"
+    fi
+    log_info "Desktop shell: $DESKTOP_SHELL"
+}

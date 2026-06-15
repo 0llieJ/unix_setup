@@ -279,15 +279,30 @@ EOF
 #   libEGL warning: egl: failed to create dri2 screen
 #   [sway/server.c] Failed to create renderer
 #
-# Forcing wlroots' pixman software renderer avoids the GPU path entirely so Sway
-# starts reliably in a VM. We set it in /etc/environment so it applies to the
-# session the display manager launches (PAM reads /etc/environment for every
-# login, graphical sessions included). Only done when a VM is detected.
+# SwayFX's fx_renderer is GLES/EGL-only — it has NO pixman software path (unlike
+# vanilla Sway), so WLR_RENDERER=pixman is ignored and EGL still fails. The fix
+# that works for SwayFX is to give EGL a software GL context: LIBGL_ALWAYS_SOFTWARE
+# forces Mesa's llvmpipe (CPU) driver, so fx_renderer initialises with no GPU.
+# We set it in /etc/environment so it applies to the session the display manager
+# launches (PAM reads /etc/environment for every login, graphical sessions
+# included). Only done when a VM is detected.
 #
 # A better-performing alternative is enabling 3D acceleration in your hypervisor
 # (e.g. VMware "Accelerate 3D graphics", virt-manager "virtio" + 3D / venus),
 # but software rendering always works.
 # ------------------------------------------------------------------------------
+# _sway_is_fx
+# True when the active compositor is SwayFX. SwayFX is typically installed AS
+# /usr/bin/sway (a drop-in replacement — e.g. the WayBlue atomic image and the
+# Arch swayfx package both do this), so there's no `swayfx` binary to look for.
+# Detect it from the version string instead:
+#   $ sway --version
+#   swayfx version 0.5.2 (based on sway 1.10.1)
+_sway_is_fx() {
+    cmd_exists swayfx && return 0
+    cmd_exists sway && sway --version 2>/dev/null | grep -qi swayfx
+}
+
 apply_vm_renderer_fix() {
     [[ "${IS_VM:-no}" != "yes" ]] && return 0
 
@@ -296,19 +311,39 @@ apply_vm_renderer_fix() {
     log_info "(For better performance, enable 3D acceleration in your hypervisor instead)"
 
     local envf="/etc/environment"
-    # WLR_RENDERER=pixman        — use the CPU software renderer, skip EGL/DRI
+
+    # The right renderer var depends on the compositor:
+    #   SwayFX — fx_renderer is GLES/EGL-only (no pixman path). Give EGL a software
+    #            GL context via LIBGL_ALWAYS_SOFTWARE=1 (Mesa llvmpipe) so it inits
+    #            with no GPU. WLR_RENDERER=pixman is IGNORED by SwayFX.
+    #   Sway   — vanilla wlroots honours WLR_RENDERER=pixman (lighter: skips GL).
+    local render_var stale_key
+    if _sway_is_fx; then
+        log_info "Compositor: SwayFX (GL-only) — using software GL (Mesa llvmpipe)"
+        render_var="LIBGL_ALWAYS_SOFTWARE=1"
+        stale_key="WLR_RENDERER"          # remove the vanilla-Sway var if present
+    else
+        log_info "Compositor: Sway — using the pixman software renderer"
+        render_var="WLR_RENDERER=pixman"
+        stale_key="LIBGL_ALWAYS_SOFTWARE" # remove the SwayFX var if present
+    fi
+
     # WLR_NO_HARDWARE_CURSORS=1  — VMs often lack hardware cursor planes
     # QT_QUICK_BACKEND=software  — force Qt Quick's software renderer. Without it
     #                              Qt/Quickshell apps (Noctalia) try the GPU dmabuf
     #                              path, which fails in a VM with "importing the
     #                              supplied dmabufs failed" → Wayland protocol error
     #                              and the shell crashes on launch.
-    local vars=("WLR_RENDERER=pixman" "WLR_NO_HARDWARE_CURSORS=1" "QT_QUICK_BACKEND=software")
+    local vars=("$render_var" "WLR_NO_HARDWARE_CURSORS=1" "QT_QUICK_BACKEND=software")
 
     if [[ "$DRY_RUN" == true ]]; then
-        log_info "[DRY-RUN] Would ensure ${vars[*]} in $envf"
+        log_info "[DRY-RUN] Would ensure ${vars[*]} in $envf (and drop ${stale_key}=)"
         return 0
     fi
+
+    # Drop the other variant's renderer var so switching compositors doesn't
+    # leave a stale/contradictory setting behind.
+    sudo sed -i "/^${stale_key}=/d" "$envf" 2>/dev/null || true
 
     local v key
     for v in "${vars[@]}"; do
@@ -320,7 +355,7 @@ apply_vm_renderer_fix() {
         fi
     done
 
-    log_success "Software rendering enabled for VM (WLR_RENDERER=pixman)"
+    log_success "Software rendering enabled for VM ($render_var)"
     log_info "Takes effect on next login — reboot or re-login before starting Sway"
 }
 
@@ -890,17 +925,25 @@ main() {
     apply_vm_renderer_fix
     setup_login_manager
     ensure_noctalia
-    create_minimal_sway_config
-    apply_flameshot_fix
-    apply_noctalia_autostart
+
+    # NOTE: Sway *configuration* is owned entirely by your dotfiles (chezmoi,
+    # module 08) — e.g. ~/.config/sway/config.d/95-noctalia.conf (Noctalia vs the
+    # standard bar) and 90-flameshot.conf. This module deliberately does NOT
+    # generate or append a Sway config, so there is a single source of truth and
+    # nothing clobbers your dotfiles. The Noctalia-vs-standard choice is made by
+    # adding/removing that drop-in in your dotfiles, not here.
+    #   (ensure_noctalia above still installs the package on non-atomic; on
+    #    atomic the image bakes it. create_minimal_sway_config / apply_flameshot_
+    #    fix / apply_noctalia_autostart remain defined below for manual use but
+    #    are no longer called.)
 
     echo ""
     log_success "Module 10 complete"
     log_info "Next steps:"
     log_info "  • Re-login or reboot for group changes to take effect"
     log_info "  • Reboot to start the login manager and log into SwayFX"
-    log_info "  • Once you have SSH set up, run module 08 to apply your real dotfiles"
-    log_info "    chezmoi apply will replace the minimal Sway config with your full one"
+    log_info "  • Apply your dotfiles (module 08 / chezmoi apply) — they provide"
+    log_info "    your full Sway config, including the Noctalia/bar drop-in"
 }
 
 main "$@"
