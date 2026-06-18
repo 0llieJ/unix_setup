@@ -35,6 +35,16 @@ setup_firewall() {
         return
     fi
 
+    # On atomic Fedora the firewall is owned by the image, not the user layer:
+    # the build enables firewalld and a one-shot (mrrobot-firewall.service) that
+    # opens only LocalSend (53317 tcp/udp) and deliberately does NOT open SSH.
+    # Re-running setup here would re-prompt and, in the firewalld branch, re-add
+    # the ssh service — undoing that. So leave the image's firewall alone.
+    if [[ "$SYSTEM_PROFILE" == "atomic" ]]; then
+        log_info "Atomic system — firewall is configured by the image (LocalSend only, no SSH); skipping"
+        return 0
+    fi
+
     local firewall="${FIREWALL:-}"
 
     if [[ -z "$firewall" ]]; then
